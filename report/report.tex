@@ -6,6 +6,7 @@
 \setlength{\parindent}{0pt}
 \usepackage{float}
 \usepackage[letterpaper,margin=1in]{geometry}
+\renewcommand{\baselinestretch}{1.2}    % line spacing
 \usepackage{amsmath}
 \usepackage{amssymb} % for \mathbb -- set of integers
 %\usepackage[bf,large]{caption}
@@ -19,12 +20,12 @@
 % This is the color used for MATLAB comments below
 \definecolor{MyDarkGreen}{rgb}{0.0,0.4,0.0}
 \lstloadlanguages{Matlab}%
-\lstset{language=Matlab,                        % Use MATLAB
+\lstset{language=bash,                        % Use MATLAB
         frame=single,                           % Single frame around code
         basicstyle=\small\ttfamily,             % Use small true type font
-        keywordstyle=[1]\color{Blue}\bf,        % MATLAB functions bold and blue
-        keywordstyle=[2]\color{Purple},         % MATLAB function arguments purple
-        keywordstyle=[3]\color{Blue}\underbar,  % User functions underlined and blue
+        %keywordstyle=[1]\color{Blue}\bf,        % MATLAB functions bold and blue
+        %keywordstyle=[2]\color{Purple},         % MATLAB function arguments purple
+        %keywordstyle=[3]\color{Blue}\underbar,  % User functions underlined and blue
         identifierstyle=,                       % Nothing special about identifiers
                                                 % Comments small dark green courier
         commentstyle=\usefont{T1}{pcr}{m}{sl}\color{MyDarkGreen}\small,
@@ -32,48 +33,102 @@
         showstringspaces=false,                 % Don't put marks in string spaces
         tabsize=2,                              % 5 spaces per tab
         %
-        %%% Put standard MATLAB functions not included in the default
-        %%% language here
-        morekeywords={xlim,ylim,var,alpha,factorial,poissrnd,normpdf,normcdf},
-        %
-        %%% Put MATLAB function parameters here
-        morekeywords=[2]{on, off, interp},
-        %
-        %%% Put user defined functions here
-        morekeywords=[3]{FindESS, homework_example},
-        %
         morecomment=[l][\color{Blue}]{...},     % Line continuation (...) like blue comment
         numbers=left,                           % Line numbers on left
-        firstnumber=1,                          % Line numbers start with line 1
+        firstnumber=0,                          % Line numbers start with line 1
         numberstyle=\tiny\color{Blue},          % Line numbers are blue
-        stepnumber=5,                           % Line numbers go in steps of 5
+        stepnumber=1,                           % Line numbers go in steps of 5
         breaklines=true
         }
 \pagestyle{fancy}
 %\thispagestyle{plain}
 
 \def\class{ECE 408}
-\def\lab{Milestone 1}
+\def\ms{Milestone 1}
 
-\lhead{ Alvin Sun, \class, \lab}
-
-\DeclarePairedDelimiter\floor{\lfloor}{\rfloor}
-\DeclareMathOperator{\LinOp}{\mathscr{L}} % script L for linear operator, using amsmath syntax
-\newcommand{\Lin}[1]{\LinOp\{#1\}}        % make it a command to avoid annoying escape braces
-\def\mean{\frac{1}{MN}\sum\limits_{x=k}^{k+M-1}\sum\limits_{y=\ell}^{\ell+N-1}}
+\lhead{ Alvin Sun / Yuqi Xue / Yan Miao, \class, \ms}
 
 \begin{document}
 
-\title{\lab}
+\title{\ms}
 \date{} % disable date to include in the title
 \author{
-Alvin Sun \\
-yixiaos3 \\
-\today
+\begin{tabular}{ccc}
+    Alvin Sun & Yuqi Xue & Yan Miao \tabularnewline
+    yixiaos3 & yuqixue2 & yanmiao2
+\end{tabular}
 }
 \maketitle
 
-\section{Introduction}
+\section{Credentials}
+\begin{tabular}{ll}
+    \textbf{Team Name}: & wandering-gpu \tabularnewline
+    \textbf{School Affiliation}: & UIUC \tabularnewline
+    \tabularnewline
+\end{tabular} \\
+\begin{tabular}{ll}
+    \textbf{Name}: & Alvin Sun \tabularnewline
+    \textbf{NetID}: & yixiaos3 \tabularnewline
+    \textbf{RaiID}: & 5c78c49784318364bab96ed4 \tabularnewline
+    \tabularnewline
+    \textbf{Name}: & Yuqi Xue \tabularnewline
+    \textbf{NetID}: & yuqixue2 \tabularnewline
+    \textbf{RaiID}: & 5c78c49f84318364bab96ee2 \tabularnewline
+    \tabularnewline
+    \textbf{Name}: & Yan Miao \tabularnewline
+    \textbf{NetID}: & yanmiao2 \tabularnewline
+    \textbf{RaiID}: & 5c78c48d84318364bab96ec2
+\end{tabular}
 
+\section{Deliverables}
+
+\subsection{Kernel Statistics}
+\begin{tabular}{ccccccl}
+ Time(\%) & Time & Calls & Avg & Min &   Max  &  Name \tabularnewline
+  40.10\% &  16.788ms &  20 & 839.42us & 1.1200us & 16.155ms & [CUDA memcpy HtoD] \tabularnewline
+  20.18\% & 8.4497ms  &  1 &  8.4497ms & 8.4497ms & 8.4497ms & void cudnn::detail::implicit\_convolve\_sgemm \tabularnewline
+  11.81\% & 4.9434ms  &  1 &  4.9434ms & 4.9434ms & 4.9434ms & volta\_cgemm\_64x32\_tn \tabularnewline
+   7.05\% & 2.9497ms  &  2 &  1.4748ms & 25.568us & 2.9241ms & void op\_generic\_tensor\_kernel \tabularnewline
+   5.69\% & 2.3830ms  &  1 &  2.3830ms & 2.3830ms & 2.3830ms & void fft2d\_c2r\_32x32 \tabularnewline
+   5.59\% & 2.3404ms  &  1 &  2.3404ms & 2.3404ms & 2.3404ms & volta\_sgemm\_128x128\_tn \tabularnewline
+   4.55\% & 1.9059ms  &  1 &  1.9059ms & 1.9059ms & 1.9059ms & void cudnn::detail::pooling\_fw\_4d\_kernel \tabularnewline
+   4.18\% & 1.7480ms  &  1 &  1.7480ms & 1.7480ms & 1.7480ms & void fft2d\_r2c\_32x32
+\end{tabular}
+
+\subsection{CUDA API Statistics}
+\begin{tabular}{ccccccl}
+Time(\%)   &   Time   &  Calls   &    Avg   &    Min    &   Max  &  Name \tabularnewline
+41.94\% & 2.94373s    &    22 & 133.81ms & 13.721us & 1.52482s & cudaStreamCreateWithFlags \tabularnewline
+ 34.43\% & 2.41664s    &    24 & 100.69ms & 97.853us & 2.41057s & cudaMemGetInfo \tabularnewline
+ 20.93\% & 1.46898s    &    19 & 77.315ms &    817ns & 393.98ms & cudaFree \tabularnewline
+\end{tabular}
+
+\subsection{Differences Between Kernels \& API Calls} % DONE
+% Report: Include an explanation of the difference between kernels and API calls.
+A CUDA kernel is an extended C function that, when called, are executed multiple times in parallel by different CUDA threads on the GPU.
+The CUDA APIs are programming interfaces that allow the programmer to use the CUDA device, i.e. the GPU.
+Kernel functions are written by the programmer and are meant to execute specific (mostly computation-intensive) tasks on the GPU,
+while API calls are provided by the CUDA library and are to manage the CUDA runtime environment and mostly prepare for the execution of kernels.
+While kernels are always executed by CUDA cores, CUDA APIs do not necessarily involve the execution of CUDA cores.
+
+\subsection{MXNet CPU Execution}
+\begin{lstlisting}[language=bash]
+Loading fashion-mnist data... done
+Loading model... done
+New Inference
+EvalMetric: {'accuracy': 0.8236}
+\end{lstlisting}
+
+\textbf{Run Time.} 5.06s
+
+\subsection{MXNet GPU Execution}
+\begin{lstlisting}[language=bash]
+Loading fashion-mnist data... done
+Loading model... done
+New Inference
+EvalMetric: {'accuracy': 0.8236}
+\end{lstlisting}
+
+\textbf{Run Time:} 4.40s
 
 \end{document}
