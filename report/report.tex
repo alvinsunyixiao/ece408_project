@@ -1,0 +1,79 @@
+\documentclass{article}
+\usepackage{graphicx}
+\graphicspath{ {../images/} } % graphics path
+\usepackage{fancyhdr}
+\usepackage{listings}
+\setlength{\parindent}{0pt}
+\usepackage{float}
+\usepackage[letterpaper,margin=1in]{geometry}
+\usepackage{amsmath}
+\usepackage{amssymb} % for \mathbb -- set of integers
+%\usepackage[bf,large]{caption}
+\usepackage{caption}
+\usepackage{subcaption} % for subfigure environment
+\usepackage{steinmetz}  % for \phase
+\usepackage{mathrsfs}   % for \mathscr -- Laplace transform operator
+\usepackage{mathtools}  % for \floor{}
+\usepackage[usenames,dvipsnames]{color}
+\definecolor{lightgray}{gray}{0.5}
+% This is the color used for MATLAB comments below
+\definecolor{MyDarkGreen}{rgb}{0.0,0.4,0.0}
+\lstloadlanguages{Matlab}%
+\lstset{language=Matlab,                        % Use MATLAB
+        frame=single,                           % Single frame around code
+        basicstyle=\small\ttfamily,             % Use small true type font
+        keywordstyle=[1]\color{Blue}\bf,        % MATLAB functions bold and blue
+        keywordstyle=[2]\color{Purple},         % MATLAB function arguments purple
+        keywordstyle=[3]\color{Blue}\underbar,  % User functions underlined and blue
+        identifierstyle=,                       % Nothing special about identifiers
+                                                % Comments small dark green courier
+        commentstyle=\usefont{T1}{pcr}{m}{sl}\color{MyDarkGreen}\small,
+        stringstyle=\color{Purple},             % Strings are purple
+        showstringspaces=false,                 % Don't put marks in string spaces
+        tabsize=2,                              % 5 spaces per tab
+        %
+        %%% Put standard MATLAB functions not included in the default
+        %%% language here
+        morekeywords={xlim,ylim,var,alpha,factorial,poissrnd,normpdf,normcdf},
+        %
+        %%% Put MATLAB function parameters here
+        morekeywords=[2]{on, off, interp},
+        %
+        %%% Put user defined functions here
+        morekeywords=[3]{FindESS, homework_example},
+        %
+        morecomment=[l][\color{Blue}]{...},     % Line continuation (...) like blue comment
+        numbers=left,                           % Line numbers on left
+        firstnumber=1,                          % Line numbers start with line 1
+        numberstyle=\tiny\color{Blue},          % Line numbers are blue
+        stepnumber=5,                           % Line numbers go in steps of 5
+        breaklines=true
+        }
+\pagestyle{fancy}
+%\thispagestyle{plain}
+
+\def\class{ECE 408}
+\def\lab{Milestone 1}
+
+\lhead{ Alvin Sun, \class, \lab}
+
+\DeclarePairedDelimiter\floor{\lfloor}{\rfloor}
+\DeclareMathOperator{\LinOp}{\mathscr{L}} % script L for linear operator, using amsmath syntax
+\newcommand{\Lin}[1]{\LinOp\{#1\}}        % make it a command to avoid annoying escape braces
+\def\mean{\frac{1}{MN}\sum\limits_{x=k}^{k+M-1}\sum\limits_{y=\ell}^{\ell+N-1}}
+
+\begin{document}
+
+\title{\lab}
+\date{} % disable date to include in the title
+\author{
+Alvin Sun \\
+yixiaos3 \\
+\today
+}
+\maketitle
+
+\section{Introduction}
+
+
+\end{document}
