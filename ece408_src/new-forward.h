@@ -39,5 +39,4 @@ void forward(mshadow::Tensor<cpu, 4, DType> &y, const mshadow::Tensor<cpu, 4, DT
 }
 }
 }
-
 #endif
