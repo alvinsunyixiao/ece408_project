@@ -22,8 +22,8 @@ void forward(mshadow::Tensor<cpu, 4, DType> &y, const mshadow::Tensor<cpu, 4, DT
     const int B = x.shape_[0];
     const int M = y.shape_[1];
     const int C = x.shape_[1];
-    const int H = x.shape_[2];
-    const int W = x.shape_[3];
+    const int H = y.shape_[2];
+    const int W = y.shape_[3];
     const int K = k.shape_[3];
 
     for (int b = 0; b < B; ++b)                     // for each image in the batch
