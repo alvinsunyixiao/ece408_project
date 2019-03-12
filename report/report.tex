@@ -15,6 +15,7 @@
 \usepackage{steinmetz}  % for \phase
 \usepackage{mathrsfs}   % for \mathscr -- Laplace transform operator
 \usepackage{mathtools}  % for \floor{}
+\usepackage{sectsty}
 \usepackage[usenames,dvipsnames]{color}
 \definecolor{lightgray}{gray}{0.5}
 % This is the color used for MATLAB comments below
@@ -44,13 +45,15 @@
 %\thispagestyle{plain}
 
 \def\class{ECE 408}
-\def\ms{Milestone 1}
+\def\fp{Final Project}
 
-\lhead{ Alvin Sun / Yuqi Xue / Yan Miao, \class, \ms}
+\partfont{\centering}
+
+\lhead{ Sun, Xue, Miao, \class, \fp}
 
 \begin{document}
 
-\title{\ms}
+\title{\fp}
 \date{} % disable date to include in the title
 \author{
 \begin{tabular}{ccc}
@@ -58,31 +61,109 @@
     yixiaos3 & yuqixue2 & yanmiao2
 \end{tabular}
 }
-\maketitle
+%\maketitle
 
-\section{Credentials}
-\begin{tabular}{ll}
-    \textbf{Team Name}: & wandering-gpu \tabularnewline
-    \textbf{School Affiliation}: & UIUC \tabularnewline
-    \tabularnewline
-\end{tabular} \\
-\begin{tabular}{ll}
-    \textbf{Name}: & Alvin Sun \tabularnewline
-    \textbf{NetID}: & yixiaos3 \tabularnewline
-    \textbf{RaiID}: & 5c78c49784318364bab96ed4 \tabularnewline
-    \tabularnewline
-    \textbf{Name}: & Yuqi Xue \tabularnewline
-    \textbf{NetID}: & yuqixue2 \tabularnewline
-    \textbf{RaiID}: & 5c78c49f84318364bab96ee2 \tabularnewline
-    \tabularnewline
-    \textbf{Name}: & Yan Miao \tabularnewline
-    \textbf{NetID}: & yanmiao2 \tabularnewline
-    \textbf{RaiID}: & 5c78c48d84318364bab96ec2
-\end{tabular}
+\begin{titlepage} % Suppresses displaying the page number on the title page and the subsequent page counts as page 1
+	\newcommand{\HRule}{\rule{\linewidth}{0.5mm}} % Defines a new command for horizontal lines, change thickness here
 
-\section{Deliverables}
+	\center % Centre everything on the page
 
-\subsection{Kernel Statistics}
+	%------------------------------------------------
+	%	Headings
+	%------------------------------------------------
+
+	\textsc{\LARGE University of Illinois at Urbana Champaign}\\[1.5cm] % Main heading such as the name of your university/college
+
+	\textsc{\Large Applied Parallel Programming}\\[0.5cm] % Major heading such as course name
+
+	\large Team: wandering-gpu \\[0.5cm] % Minor heading such as course title
+
+	%------------------------------------------------
+	%	Title
+	%------------------------------------------------
+
+	\HRule\\[0.4cm]
+
+	{\huge\bfseries Final Project}\\[0.4cm] % Title of your document
+
+	\HRule\\[1.5cm]
+
+	%------------------------------------------------
+	%	Author(s)
+	%------------------------------------------------
+
+	\begin{minipage}{0.4\textwidth}
+		\begin{flushleft}
+			\large
+			\textit{Author}\\
+			Alvin Sun \\ % Your name
+            Yuqi Xue  \\
+            Yan Miao
+		\end{flushleft}
+	\end{minipage}
+	~
+	\begin{minipage}{0.4\textwidth}
+		\begin{flushright}
+			\large
+			\textit{Net ID}\\
+			yixiaos3 \\ % net id
+            yuqixue2 \\
+            yanmiao2
+		\end{flushright}
+	\end{minipage}
+
+	% If you don't want a supervisor, uncomment the two lines below and comment the code above
+	%{\large\textit{Author}}\\
+	%John \textsc{Smith} % Your name
+
+	%------------------------------------------------
+	%	Date
+	%------------------------------------------------
+
+	\vfill\vfill\vfill % Position the date 3/4 down the remaining page
+
+	{\large\today} % Date, change the \today to a set date if you want to be precise
+
+	%------------------------------------------------
+	%	Logo
+	%------------------------------------------------
+
+	%\vfill\vfill
+	%\includegraphics[width=0.2\textwidth]{placeholder.jpg}\\[1cm] % Include a department/university logo - this will require the graphicx package
+
+	%----------------------------------------------------------------------------------------
+
+	\vfill % Push the date up 1/4 of the remaining page
+
+\end{titlepage}
+
+% deprecated
+% \part*{Credentials}
+% \setcounter{section}{0}
+%
+% \begin{tabular}{ll}
+%     \textbf{Team Name}: & wandering-gpu \tabularnewline
+%     \textbf{School Affiliation}: & UIUC \tabularnewline
+%     \tabularnewline
+% \end{tabular} \\
+% \begin{tabular}{ll}
+%     \textbf{Name}: & Alvin Sun \tabularnewline
+%     \textbf{NetID}: & yixiaos3 \tabularnewline
+%     \textbf{RaiID}: & 5c78c49784318364bab96ed4 \tabularnewline
+%     \tabularnewline
+%     \textbf{Name}: & Yuqi Xue \tabularnewline
+%     \textbf{NetID}: & yuqixue2 \tabularnewline
+%     \textbf{RaiID}: & 5c78c49f84318364bab96ee2 \tabularnewline
+%     \tabularnewline
+%     \textbf{Name}: & Yan Miao \tabularnewline
+%     \textbf{NetID}: & yanmiao2 \tabularnewline
+%     \textbf{RaiID}: & 5c78c48d84318364bab96ec2
+% \end{tabular}
+
+\part*{Milestone 1}
+\setcounter{section}{0}
+
+\section{Kernel Statistics}
 \begin{tabular}{ccccccl}
  Time(\%) & Time & Calls & Avg & Min &   Max  &  Name \tabularnewline
   40.10\% &  16.788ms &  20 & 839.42us & 1.1200us & 16.155ms & [CUDA memcpy HtoD] \tabularnewline
@@ -95,7 +176,7 @@
    4.18\% & 1.7480ms  &  1 &  1.7480ms & 1.7480ms & 1.7480ms & void fft2d\_r2c\_32x32
 \end{tabular}
 
-\subsection{CUDA API Statistics}
+\section{CUDA API Statistics}
 \begin{tabular}{ccccccl}
 Time(\%)   &   Time   &  Calls   &    Avg   &    Min    &   Max  &  Name \tabularnewline
 41.94\% & 2.94373s    &    22 & 133.81ms & 13.721us & 1.52482s & cudaStreamCreateWithFlags \tabularnewline
@@ -103,7 +184,7 @@ Time(\%)   &   Time   &  Calls   &    Avg   &    Min    &   Max  &  Name \tabula
  20.93\% & 1.46898s    &    19 & 77.315ms &    817ns & 393.98ms & cudaFree \tabularnewline
 \end{tabular}
 
-\subsection{Differences Between Kernels \& API Calls} % DONE
+\section{Differences Between Kernels \& API Calls} % DONE
 % Report: Include an explanation of the difference between kernels and API calls.
 A CUDA kernel is an extended C function that, when called, are executed multiple times in parallel by different CUDA threads on the GPU.
 The CUDA APIs are programming interfaces that allow the programmer to use the CUDA device, i.e. the GPU.
@@ -111,7 +192,7 @@ Kernel functions are written by the programmer and are meant to execute specific
 while API calls are provided by the CUDA library and are to manage the CUDA runtime environment and mostly prepare for the execution of kernels.
 While kernels are always executed by CUDA cores, CUDA APIs do not necessarily involve the execution of CUDA cores.
 
-\subsection{MXNet CPU Execution}
+\section{MXNet CPU Execution}
 \begin{lstlisting}[language=bash]
 Loading fashion-mnist data... done
 Loading model... done
@@ -121,7 +202,8 @@ EvalMetric: {'accuracy': 0.8236}
 
 \textbf{Run Time.} 5.06s
 
-\subsection{MXNet GPU Execution}
+\pagebreak
+\section{MXNet GPU Execution}
 \begin{lstlisting}[language=bash]
 Loading fashion-mnist data... done
 Loading model... done
@@ -130,5 +212,19 @@ EvalMetric: {'accuracy': 0.8236}
 \end{lstlisting}
 
 \textbf{Run Time:} 4.40s
+
+\part*{Milestone 2}
+\setcounter{section}{0}
+
+% \section{CPU Execution Time}
+\begin{table}[H]
+    \centering
+    \begin{tabular}{c|c}
+        Full CPU Time & 15.92s \\ \hline
+        First Layer Time & 2.949466s \\ \hline
+        Second Layer Time & 11.342089s
+    \end{tabular}
+    \caption{CPU Run Time Statistics}
+\end{table}
 
 \end{document}
