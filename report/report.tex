@@ -219,11 +219,32 @@ EvalMetric: {'accuracy': 0.8236}
 % \section{CPU Execution Time}
 \begin{table}[H]
     \centering
-    \begin{tabular}{c|c}
-        Full CPU Time & 15.92s \\ \hline
-        First Layer Time & 2.949466s \\ \hline
-        Second Layer Time & 11.342089s
-    \end{tabular}
+    \begin{minipage}{.32\linewidth}
+        \begin{tabular}{c|c}
+            Full CPU Time & 11.32s \\ \hline
+            First Layer Time & 2.405296s \\ \hline
+            Second Layer Time & 7.342860
+        \end{tabular}
+        \caption*{10000 images}
+    \end{minipage}
+    ~
+    \begin{minipage}{.32\linewidth}
+        \begin{tabular}{c|c}
+            Full CPU Time & 0.250576s \\ \hline
+            First Layer Time & 0.756567s \\ \hline
+            Second Layer Time & 2.03s
+        \end{tabular}
+        \caption*{1000 images}
+    \end{minipage}
+    ~
+    \begin{minipage}{.32\linewidth}
+        \begin{tabular}{c|c}
+            Full CPU Time & 1.08s \\ \hline
+            First Layer Time & 0.035050s \\ \hline
+            Second Layer Time & 0.075312s
+        \end{tabular}
+        \caption*{100 images}
+    \end{minipage}
     \caption{CPU Run Time Statistics}
 \end{table}
 
