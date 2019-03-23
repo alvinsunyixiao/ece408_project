@@ -7,13 +7,36 @@
 
 #define min(a, b)   ((a < b) ? a : b)
 
+#define y4d(i3, i2, i1, i0) y[(i3) * (M * H_out * W_out) + (i2) * (H_out * W_out) + (i1) * (W_out) + i0]
+#define x4d(i3, i2, i1, i0) x[(i3) * (C * H * W) + (i2) * (H * W) + (i1) * (W) + i0]
+
 #define KERNEL_WIDTH    5
-#define KERNEL_M        16
-#define KERNEL_C        6
 #define BLOCK_WIDTH     8
-#define CHANNLE_SIZE    16
+#define CHANNEL_WIDTH   16
 
 #define BATCH_SIZE      256
+
+/* layer 1 constants */
+#define L1_Hin          48
+#define L1_Win          48
+#define L1_Cin          1
+#define L1_Hout         44
+#define L1_Wout         44
+#define L1_Cout         6
+
+#define L1_BLK_WIDTH    8
+#define L1_TILE_WIDTH   4
+
+/* layer 2 constants */
+#define L2_Hin          22
+#define L2_Win          22
+#define L2_Cin          6
+#define L2_Hout         18
+#define L2_Wout         18
+#define L2_Cout         16
+
+#define L2_BLK_WIDTH    8
+#define L2_TILE_WIDTH   4
 
 #define bx  blockIdx.x
 #define by  blockIdx.y
@@ -27,46 +50,57 @@ namespace mxnet
 namespace op
 {
 
-__constant__ float kernel[KERNEL_M*KERNEL_C*KERNEL_WIDTH*KERNEL_WIDTH];
+__constant__ float kernel1[L1_Cout][L1_Cin][KERNEL_WIDTH][KERNEL_WIDTH];
+__constant__ float kernel2[L2_Cout][L2_Cin][KERNEL_WIDTH][KERNEL_WIDTH];
 
-__global__ void forward_kernel(float *y, const float *x,
-        const int B, const int M, const int C, const int H, const int W, const int K) {
+__global__ void forward_layer1(float *y, const float *x, const int B) {
 
-    const int H_out = H - K + 1;
-    const int W_out = W - K + 1;
+    static int H        = L1_Hin;
+    static int W        = L1_Win;
+    static int C        = L1_Cin;
+    static int H_out    = L1_Hout;
+    static int W_out    = L1_Wout;
+    static int M        = L1_Cout;
 
-// An example use of these macros:
-// float a = y4d(0,0,0,0)
-// y4d(0,0,0,0) = a
-#define y4d(i3, i2, i1, i0) y[(i3) * (M * H_out * W_out) + (i2) * (H_out * W_out) + (i1) * (W_out) + i0]
-#define x4d(i3, i2, i1, i0) x[(i3) * (C * H * W) + (i2) * (H * W) + (i1) * (W) + i0]
-#define k4d(i3, i2, i1, i0) kernel[(i3) * (C * K * K) + (i2) * (K * K) + (i1) * (K) + i0]
+    const int col   = bx * L1_BLK_WIDTH + tx;
+    const int row   = by * L1_BLK_WIDTH + ty;
+    const int cout  = tz;
+    const int batch = bz;
 
-    int col     = bx * BLOCK_WIDTH + tx;
-    int row     = by * BLOCK_WIDTH + ty;
-    int zdim    = bz * CHANNLE_SIZE + tz;
-    int channel = zdim % M;
-    int batch   = zdim / M;
-
-    if (batch < B && row < H_out && col < W_out) {
+    if (batch < B && row < L1_Hout && col < L1_Wout) {
         float sum = 0;
-        for (int c = 0; c < C; c++)
-            for (int p = 0; p < K; ++p)
-                for (int q = 0; q < K; ++q)
-                    sum += x4d(batch, c, row + p, col + q) * k4d(channel, c, p, q);
-        y4d(batch, channel, row, col) = sum;
+        for (int cin = 0; cin < C; cin++)
+            for (int p = 0; p < KERNEL_WIDTH; ++p)
+                for (int q = 0; q < KERNEL_WIDTH; ++q)
+                    sum += x4d(batch, cin, row + p, col + q) * kernel1[cout][cin][p][q];
+        y4d(batch, cout, row, col) = sum;
     }
-
-#undef y4d
-#undef x4d
-#undef k4d
 }
 
-/* 
-   This function is called by new-inl.h
-   Any code you write should be executed by this function.
-   For ECE408, we only expect the float version of the operator to be called, so here we specialize with only floats.
-*/
+__global__ void forward_layer2(float *y, const float *x, const int B) {
+
+    static int H        = L2_Hin;
+    static int W        = L2_Win;
+    static int C        = L2_Cin;
+    static int H_out    = L2_Hout;
+    static int W_out    = L2_Wout;
+    static int M        = L2_Cout;
+
+    const int col   = bx * L2_BLK_WIDTH + tx;
+    const int row   = by * L2_BLK_WIDTH + ty;
+    const int cout  = tz;
+    const int batch = bz;
+
+    if (batch < B && row < L2_Hout && col < L2_Wout) {
+        float sum = 0;
+        for (int cin = 0; cin < C; cin++)
+            for (int p = 0; p < KERNEL_WIDTH; ++p)
+                for (int q = 0; q < KERNEL_WIDTH; ++q)
+                    sum += x4d(batch, cin, row + p, col + q) * kernel2[cout][cin][p][q];
+        y4d(batch, cout, row, col) = sum;
+    }
+}
+
 template <>
 void forward<gpu, float>(mshadow::Tensor<gpu, 4, float> &y,
         const mshadow::Tensor<gpu, 4, float> &x,
@@ -91,24 +125,42 @@ void forward<gpu, float>(mshadow::Tensor<gpu, 4, float> &y,
     const int num_stream = ceil((float)B / BATCH_SIZE);
     cudaStream_t stream[num_stream];
 
-    // Set the kernel dimensions
-    dim3 gridDim(ceil((float)W_out / BLOCK_WIDTH),
-                 ceil((float)H_out / BLOCK_WIDTH),
-                 ceil((float)C_out * BATCH_SIZE / CHANNLE_SIZE));
-    dim3 blockDim(BLOCK_WIDTH, BLOCK_WIDTH, CHANNLE_SIZE);
-
-    // Call the kernel
+    // create pointer aliases
     float *xptr = x.dptr_;
     float *yptr = y.dptr_;
     float *wptr = w.dptr_;
-    cudaMemcpyToSymbol(kernel, wptr, sizeof(float) * K_SIZE);
-    for (int i = 0; i < num_stream; ++i) {
-        cudaStreamCreate(&stream[i]);
-        forward_kernel<<<gridDim, blockDim, 0, stream[i]>>>(
-                yptr + i * BATCH_SIZE * o_size,
-                xptr + i * BATCH_SIZE * i_size,
-                min(BATCH_SIZE, B - i * BATCH_SIZE), C_out, C_in, H_in, W_in, K);
+
+    // kernel execution
+    if (C_in == L1_Cin) {
+        dim3 gridDim(ceil((float)W_out / BLOCK_WIDTH),
+                     ceil((float)H_out / BLOCK_WIDTH), BATCH_SIZE);
+        dim3 blockDim(BLOCK_WIDTH, BLOCK_WIDTH, L1_Cout);
+        cudaMemcpyToSymbol(kernel1, wptr, sizeof(float) * K_SIZE);
+        for (int i = 0; i < num_stream; ++i) {
+            cudaStreamCreate(&stream[i]);
+            forward_layer1<<<gridDim, blockDim, 0, stream[i]>>>(
+                    yptr + i * BATCH_SIZE * o_size,
+                    xptr + i * BATCH_SIZE * i_size,
+                    min(BATCH_SIZE, B - i * BATCH_SIZE));
+        }
     }
+    else if (C_in == L2_Cin) {
+        dim3 gridDim(ceil((float)W_out / BLOCK_WIDTH),
+                     ceil((float)H_out / BLOCK_WIDTH), BATCH_SIZE);
+        dim3 blockDim(BLOCK_WIDTH, BLOCK_WIDTH, L2_Cout);
+        cudaMemcpyToSymbol(kernel2, wptr, sizeof(float) * K_SIZE);
+        for (int i = 0; i < num_stream; ++i) {
+            cudaStreamCreate(&stream[i]);
+            forward_layer2<<<gridDim, blockDim, 0, stream[i]>>>(
+                    yptr + i * BATCH_SIZE * o_size,
+                    xptr + i * BATCH_SIZE * i_size,
+                    min(BATCH_SIZE, B - i * BATCH_SIZE));
+        }
+    }
+
+    // Destroy CUDA streams
+    for (int i = 0; i < num_stream; ++i)
+        cudaStreamDestroy(stream[i]);
 
     // Use MSHADOW_CUDA_CALL to check for CUDA runtime errors.
     MSHADOW_CUDA_CALL(cudaDeviceSynchronize());
