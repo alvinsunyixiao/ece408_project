@@ -37,7 +37,7 @@
 #define L2_Wout         18
 #define L2_Cout         16
 
-#define L2_TILE_WIDTH   6
+#define L2_TILE_WIDTH   8
 #define L2_BLK_WIDTH    (L2_TILE_WIDTH + KERNEL_WIDTH - 1)
 
 #define bx  blockIdx.x
