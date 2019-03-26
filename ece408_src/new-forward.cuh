@@ -37,8 +37,8 @@
 #define L2_Wout         18
 #define L2_Cout         16
 
-#define L2_BLK_WIDTH    8
-#define L2_TILE_WIDTH   8
+#define L2_TILE_WIDTH   6
+#define L2_BLK_WIDTH    (L2_TILE_WIDTH + KERNEL_WIDTH - 1)
 
 #define bx  blockIdx.x
 #define by  blockIdx.y
@@ -170,7 +170,7 @@ void forward<gpu, float>(mshadow::Tensor<gpu, 4, float> &y,
     else if (C_in == L2_Cin) {
         dim3 gridDim(ceil((float)W_out / L2_TILE_WIDTH),
                      ceil((float)H_out / L2_TILE_WIDTH), BATCH_SIZE);
-        dim3 blockDim(L2_BLK_WIDTH, L2_BLK_WIDTH, L2_Cout);
+        dim3 blockDim(L2_TILE_WIDTH, L2_TILE_WIDTH, L2_Cout);
         cudaMemcpyToSymbol(kernel2, wptr, sizeof(float) * K_SIZE);
         for (int i = 0; i < num_stream; ++i) {
             cudaStreamCreate(&stream[i]);
