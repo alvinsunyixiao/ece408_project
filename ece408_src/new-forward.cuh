@@ -14,8 +14,6 @@
 #define BLOCK_WIDTH     8
 #define CHANNEL_WIDTH   16
 
-#define BATCH_SIZE      10000
-
 /* layer 1 constants */
 #define L1_Hin          48
 #define L1_Win          48
@@ -171,12 +169,6 @@ void forward<gpu, float>(mshadow::Tensor<gpu, 4, float> &y,
     const int W_out     = y.shape_[3];
     const int K_SIZE    = K * K * C_in * C_out;
 
-    // Create CUDA streams
-    const int i_size = H_in * W_in * C_in;
-    const int o_size = H_out * W_out * C_out;
-    const int num_stream = ceil((float)B / BATCH_SIZE);
-    cudaStream_t stream[num_stream];
-
     // create pointer aliases
     float *xptr = x.dptr_;
     float *yptr = y.dptr_;
@@ -185,34 +177,18 @@ void forward<gpu, float>(mshadow::Tensor<gpu, 4, float> &y,
     // kernel execution
     if (C_in == L1_Cin) {
         dim3 gridDim(ceil((float)W_out / L1_TILE_WIDTH),
-                     ceil((float)H_out / L1_TILE_WIDTH), BATCH_SIZE);
+                     ceil((float)H_out / L1_TILE_WIDTH), B);
         dim3 blockDim(L1_TILE_WIDTH, L1_TILE_WIDTH, L1_Cout);
         cudaMemcpyToSymbol(kernel1, wptr, sizeof(float) * K_SIZE);
-        for (int i = 0; i < num_stream; ++i) {
-            cudaStreamCreate(&stream[i]);
-            forward_layer1<<<gridDim, blockDim, 0, stream[i]>>>(
-                    yptr + i * BATCH_SIZE * o_size,
-                    xptr + i * BATCH_SIZE * i_size,
-                    min(BATCH_SIZE, B - i * BATCH_SIZE));
-        }
+        forward_layer1<<<gridDim, blockDim>>>(yptr, xptr, B);
     }
     else if (C_in == L2_Cin) {
         dim3 gridDim(ceil((float)W_out / L2_TILE_WIDTH),
-                     ceil((float)H_out / L2_TILE_WIDTH), BATCH_SIZE);
+                     ceil((float)H_out / L2_TILE_WIDTH), B);
         dim3 blockDim(L2_TILE_WIDTH, L2_TILE_WIDTH, L2_Cout);
         cudaMemcpyToSymbol(kernel2, wptr, sizeof(float) * K_SIZE);
-        for (int i = 0; i < num_stream; ++i) {
-            cudaStreamCreate(&stream[i]);
-            forward_layer2<<<gridDim, blockDim, 0, stream[i]>>>(
-                    yptr + i * BATCH_SIZE * o_size,
-                    xptr + i * BATCH_SIZE * i_size,
-                    min(BATCH_SIZE, B - i * BATCH_SIZE));
-        }
+        forward_layer2<<<gridDim, blockDim>>>(yptr, xptr, B);
     }
-
-    // Destroy CUDA streams
-    for (int i = 0; i < num_stream; ++i)
-        cudaStreamDestroy(stream[i]);
 
     // Use MSHADOW_CUDA_CALL to check for CUDA runtime errors.
     MSHADOW_CUDA_CALL(cudaDeviceSynchronize());
