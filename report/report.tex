@@ -248,4 +248,30 @@ EvalMetric: {'accuracy': 0.8236}
     \caption{CPU Run Time Statistics}
 \end{table}
 
+\part*{Milestone 3}
+\setcounter{section}{0}
+
+\section{Kernel Statistics}
+\begin{tabular}{ccccccl}
+ Time(\%) & Time & Calls & Avg & Min &   Max  &  Name \tabularnewline
+  40.10\% &  16.788ms &  20 & 839.42us & 1.1200us & 16.155ms & [CUDA memcpy HtoD] \tabularnewline
+  20.18\% & 8.4497ms  &  1 &  8.4497ms & 8.4497ms & 8.4497ms & void cudnn::detail::implicit\_convolve\_sgemm \tabularnewline
+  11.81\% & 4.9434ms  &  1 &  4.9434ms & 4.9434ms & 4.9434ms & volta\_cgemm\_64x32\_tn \tabularnewline
+   7.05\% & 2.9497ms  &  2 &  1.4748ms & 25.568us & 2.9241ms & void op\_generic\_tensor\_kernel \tabularnewline
+   5.69\% & 2.3830ms  &  1 &  2.3830ms & 2.3830ms & 2.3830ms & void fft2d\_c2r\_32x32 \tabularnewline
+   5.59\% & 2.3404ms  &  1 &  2.3404ms & 2.3404ms & 2.3404ms & volta\_sgemm\_128x128\_tn \tabularnewline
+   4.55\% & 1.9059ms  &  1 &  1.9059ms & 1.9059ms & 1.9059ms & void cudnn::detail::pooling\_fw\_4d\_kernel \tabularnewline
+   4.18\% & 1.7480ms  &  1 &  1.7480ms & 1.7480ms & 1.7480ms & void fft2d\_r2c\_32x32
+\end{tabular}
+
+\section{CUDA API Statistics}
+\begin{tabular}{ccccccl}
+Time(\%)   &   Time   &  Calls   &    Avg   &    Min    &   Max  &  Name \tabularnewline
+41.94\% & 2.94373s    &    22 & 133.81ms & 13.721us & 1.52482s & cudaStreamCreateWithFlags \tabularnewline
+ 34.43\% & 2.41664s    &    24 & 100.69ms & 97.853us & 2.41057s & cudaMemGetInfo \tabularnewline
+ 20.93\% & 1.46898s    &    19 & 77.315ms &    817ns & 393.98ms & cudaFree \tabularnewline
+\end{tabular}
+
+\section{Execution Timeline}
+
 \end{document}
