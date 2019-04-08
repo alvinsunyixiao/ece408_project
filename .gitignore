@@ -306,3 +306,6 @@ TSWLatexianTemp*
 
 # MacOS Trash
 .DS_Store
+
+# vscode config folder
+.vscode/
