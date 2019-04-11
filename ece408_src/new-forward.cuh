@@ -12,7 +12,12 @@ __constant__ float kernels[1250];
 
 template<typename gpu, typename DType>
 __global__ void forward_kernel(DType *y, const DType *x) {
-
+  /*
+      Modify this function to implement the forward pass described in Chapter 16.
+      We have added an additional dimension to the tensors to support an entire mini-batch
+      The goal here is to be correct AND fast.
+      We have some nice #defs for you below to simplify indexing. Feel free to use them, or create your own.
+      */
     __shared__ DType shared_x[784];
 
     int n = blockIdx.x;
@@ -38,8 +43,11 @@ __global__ void forward_kernel(DType *y, const DType *x) {
     }
 }
 
-// This function is called by new-inl.h
-// Any code you write should be executed by this function
+/*
+   This function is called by new-inl.h
+   Any code you write should be executed by this function.
+   For ECE408, we only expect the float version of the operator to be called, so here we specialize with only floats.
+*/
 template<typename gpu, typename DType>
 void forward(mshadow::Tensor<gpu, 4, DType> &y, const mshadow::Tensor<gpu, 4, DType> &x, const mshadow::Tensor<gpu, 4, DType> &w) {
 
@@ -60,8 +68,6 @@ void forward(mshadow::Tensor<gpu, 4, DType> &y, const mshadow::Tensor<gpu, 4, DT
     MSHADOW_CUDA_CALL(cudaDeviceSynchronize());
 
 }
-
-
 
 }
 }
