@@ -9,6 +9,7 @@
 
 #define y4d(i3, i2, i1, i0) y[(i3) * (M * H_out * W_out) + (i2) * (H_out * W_out) + (i1) * (W_out) + i0]
 #define x4d(i3, i2, i1, i0) x[(i3) * (C * H * W) + (i2) * (H * W) + (i1) * (W) + i0]
+#define w4d(i3, i2, i1, i0) w[(i3) * (C * KERNEL_WIDTH * KERNEL_WIDTH) + (i2) * (KERNEL_WIDTH * KERNEL_WIDTH) + (i1) * (KERNEL_WIDTH) + i0]
 
 #define KERNEL_WIDTH    5
 #define BLOCK_WIDTH     8
@@ -22,7 +23,7 @@
 #define L1_Wout         44
 #define L1_Cout         6
 
-#define L1_TILE_WIDTH   12
+#define L1_TILE_WIDTH   11
 #define L1_BLK_WIDTH    (L1_TILE_WIDTH + KERNEL_WIDTH - 1)
 #define L1_TILE_SIZE    (L1_TILE_WIDTH*L1_TILE_WIDTH)
 #define L1_BLK_SIZE     (L1_BLK_WIDTH*L1_BLK_WIDTH)
@@ -36,7 +37,7 @@
 #define L2_Wout         18
 #define L2_Cout         16
 
-#define L2_TILE_WIDTH   8
+#define L2_TILE_WIDTH   6
 #define L2_BLK_WIDTH    (L2_TILE_WIDTH + KERNEL_WIDTH - 1)
 #define L2_TILE_SIZE    (L2_TILE_WIDTH*L2_TILE_WIDTH)
 #define L2_BLK_SIZE     (L2_BLK_WIDTH*L2_BLK_WIDTH)
@@ -57,7 +58,7 @@ namespace op
 __constant__ float kernel1[L1_Cout][L1_Cin][KERNEL_WIDTH][KERNEL_WIDTH];
 __constant__ float kernel2[L2_Cout][L2_Cin][KERNEL_WIDTH][KERNEL_WIDTH];
 
-__global__ void forward_layer1(float *y, const float *x, const int B) {
+__global__ void forward_layer1(float *y, const float *x, const float *w, const int B) {
 
     __shared__ float cache[L1_Cin][L1_BLK_WIDTH][L1_BLK_WIDTH];
 
@@ -78,6 +79,7 @@ __global__ void forward_layer1(float *y, const float *x, const int B) {
 
     if (batch < B) {
         // load shared cache
+        /*
         if (tz < L1_LOAD_CYCLE){ // use one of the threads to load
             int off_col = l_idx % L1_BLK_WIDTH;
             int off_row = l_idx / L1_BLK_WIDTH % L1_BLK_WIDTH;
@@ -91,20 +93,23 @@ __global__ void forward_layer1(float *y, const float *x, const int B) {
         }
 
         __syncthreads();
+        */
 
         // perform computation
         if (row < H_out && col < W_out) {
             float sum = 0;
+            y4d(batch, cout, row, col) = 0;
             for (int c = 0; c < C; ++c)
                 for (int p = 0; p < KERNEL_WIDTH; ++p)
                     for (int q = 0; q < KERNEL_WIDTH; ++q)
-                        sum += cache[c][ty+p][tx+q] * kernel1[cout][c][p][q];
+                        sum += w4d(cout, c, p, q) * x4d(batch, c, row+p, col+q);
+                        //sum += cache[c][ty+p][tx+q] * kernel1[cout][c][p][q];
             y4d(batch, cout, row, col) = sum;
         }
     }
 }
 
-__global__ void forward_layer2(float *y, const float *x, const int B) {
+__global__ void forward_layer2(float *y, const float *x, const float *w, const int B) {
 
     __shared__ float cache[L2_Cin][L2_BLK_WIDTH][L2_BLK_WIDTH];
 
@@ -125,6 +130,7 @@ __global__ void forward_layer2(float *y, const float *x, const int B) {
 
     if (batch < B) {
         // load shared cache
+        /*
         if (tz < L2_LOAD_CYCLE){ // use one of the threads to load
             int off_col = l_idx % L2_BLK_WIDTH;
             int off_row = l_idx / L2_BLK_WIDTH % L2_BLK_WIDTH;
@@ -138,6 +144,7 @@ __global__ void forward_layer2(float *y, const float *x, const int B) {
         }
 
         __syncthreads();
+        */
 
         // perform computation
         if (row < H_out && col < W_out) {
@@ -145,7 +152,8 @@ __global__ void forward_layer2(float *y, const float *x, const int B) {
             for (int c = 0; c < C; ++c)
                 for (int p = 0; p < KERNEL_WIDTH; ++p)
                     for (int q = 0; q < KERNEL_WIDTH; ++q)
-                        sum += cache[c][ty+p][tx+q] * kernel2[cout][c][p][q];
+                        sum += w4d(cout, c, p, q) * x4d(batch, c, row+p, col+q);
+                        //sum += cache[c][ty+p][tx+q] * kernel2[cout][c][p][q];
             y4d(batch, cout, row, col) = sum;
         }
     }
@@ -179,15 +187,15 @@ void forward<gpu, float>(mshadow::Tensor<gpu, 4, float> &y,
         dim3 gridDim(ceil((float)W_out / L1_TILE_WIDTH),
                      ceil((float)H_out / L1_TILE_WIDTH), B);
         dim3 blockDim(L1_TILE_WIDTH, L1_TILE_WIDTH, L1_Cout);
-        cudaMemcpyToSymbol(kernel1, wptr, sizeof(float) * K_SIZE);
-        forward_layer1<<<gridDim, blockDim>>>(yptr, xptr, B);
+        //cudaMemcpyToSymbol(kernel1, wptr, sizeof(float) * K_SIZE);
+        forward_layer1<<<gridDim, blockDim>>>(yptr, xptr, wptr, B);
     }
     else if (C_in == L2_Cin) {
         dim3 gridDim(ceil((float)W_out / L2_TILE_WIDTH),
                      ceil((float)H_out / L2_TILE_WIDTH), B);
         dim3 blockDim(L2_TILE_WIDTH, L2_TILE_WIDTH, L2_Cout);
-        cudaMemcpyToSymbol(kernel2, wptr, sizeof(float) * K_SIZE);
-        forward_layer2<<<gridDim, blockDim>>>(yptr, xptr, B);
+        //cudaMemcpyToSymbol(kernel2, wptr, sizeof(float) * K_SIZE);
+        forward_layer2<<<gridDim, blockDim>>>(yptr, xptr, wptr, B);
     }
 
     // Use MSHADOW_CUDA_CALL to check for CUDA runtime errors.
