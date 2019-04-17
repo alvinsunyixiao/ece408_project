@@ -76,6 +76,8 @@ __global__ void forward_layer1(float *y, const float *x, const int B) {
     const int cout  = tz;
     const int batch = bz;
 
+    float sum = 0;
+
     if (batch < B) {
         // load shared cache
         if (tz < L1_LOAD_CYCLE){ // use one of the threads to load
@@ -94,13 +96,17 @@ __global__ void forward_layer1(float *y, const float *x, const int B) {
 
         // perform computation
         if (row < H_out && col < W_out) {
-            float sum = 0;
-            for (int c = 0; c < C; ++c)
+            #pragma unroll
+            for (int c = 0; c < L1_Cin; ++c) {
+                #pragma unroll
                 for (int p = 0; p < KERNEL_WIDTH; ++p) {
                     #pragma unroll
-                    for (int q = 0; q < KERNEL_WIDTH; ++q)
-                        sum += cache[c][ty+p][tx+q] * kernel1[cout][c][p][q];
+                    for (int q = 0; q < KERNEL_WIDTH; ++q) {
+                        sum += 3.5 * kernel1[cout][c][p][q];
+                        //sum += cache[c][ty+p][tx+q] * kernel1[cout][c][p][q];
+                    }
                 }
+            }
             y4d(batch, cout, row, col) = sum;
         }
     }
