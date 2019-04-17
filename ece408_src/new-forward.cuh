@@ -22,7 +22,7 @@
 #define L1_Wout         44
 #define L1_Cout         6
 
-#define L1_TILE_WIDTH   12
+#define L1_TILE_WIDTH   8
 #define L1_BLK_WIDTH    (L1_TILE_WIDTH + KERNEL_WIDTH - 1)
 #define L1_TILE_SIZE    (L1_TILE_WIDTH*L1_TILE_WIDTH)
 #define L1_BLK_SIZE     (L1_BLK_WIDTH*L1_BLK_WIDTH)
@@ -83,10 +83,10 @@ __global__ void forward_layer1(float *y, const float *x, const int B) {
             int off_row = l_idx / L1_BLK_WIDTH % L1_BLK_WIDTH;
             int channel = l_idx / L1_BLK_SIZE;
             if (channel < C) {
+                float value = 0;
                 if (b_col + off_col < W && b_row + off_row < H)
-                    cache[channel][off_row][off_col] = x4d(batch, channel, off_row+b_row, off_col+b_col);
-                else
-                    cache[channel][off_row][off_col] = 0;
+                    value = x4d(batch, channel, off_row+b_row, off_col+b_col);
+                cache[channel][off_row][off_col] = value;
             }
         }
 
@@ -96,9 +96,11 @@ __global__ void forward_layer1(float *y, const float *x, const int B) {
         if (row < H_out && col < W_out) {
             float sum = 0;
             for (int c = 0; c < C; ++c)
-                for (int p = 0; p < KERNEL_WIDTH; ++p)
+                for (int p = 0; p < KERNEL_WIDTH; ++p) {
+                    #pragma unroll
                     for (int q = 0; q < KERNEL_WIDTH; ++q)
                         sum += cache[c][ty+p][tx+q] * kernel1[cout][c][p][q];
+                }
             y4d(batch, cout, row, col) = sum;
         }
     }
@@ -130,10 +132,10 @@ __global__ void forward_layer2(float *y, const float *x, const int B) {
             int off_row = l_idx / L2_BLK_WIDTH % L2_BLK_WIDTH;
             int channel = l_idx / L2_BLK_SIZE;
             if (channel < C) {
+                float value = 0;
                 if (b_col + off_col < W && b_row + off_row < H)
-                    cache[channel][off_row][off_col] = x4d(batch, channel, off_row+b_row, off_col+b_col);
-                else
-                    cache[channel][off_row][off_col] = 0;
+                    value = x4d(batch, channel, off_row+b_row, off_col+b_col);
+                cache[channel][off_row][off_col] = value;
             }
         }
 
@@ -143,9 +145,11 @@ __global__ void forward_layer2(float *y, const float *x, const int B) {
         if (row < H_out && col < W_out) {
             float sum = 0;
             for (int c = 0; c < C; ++c)
-                for (int p = 0; p < KERNEL_WIDTH; ++p)
+                for (int p = 0; p < KERNEL_WIDTH; ++p) {
+                    #pragma unroll
                     for (int q = 0; q < KERNEL_WIDTH; ++q)
                         sum += cache[c][ty+p][tx+q] * kernel2[cout][c][p][q];
+                }
             y4d(batch, cout, row, col) = sum;
         }
     }
