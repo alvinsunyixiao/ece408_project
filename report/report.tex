@@ -308,7 +308,7 @@ EvalMetric: {'accuracy': 0.8236}
 
 \section{Execution Summary}
 Upon Milestone 4, we have implemented three optimizations to our kernel function, including having different
-implementations and tunings for different layers, using shared memory convolution, and putting convolution
+implementations and tuning for different layers, using shared memory convolution, and putting convolution
 kernels in constant memory. The overall execution (on server) involving all three optimizations yields the following
 results.
 
@@ -393,7 +393,7 @@ warp divergences.
     \caption{Layer 2 Statistics}
 \end{figure}
 
-\par
+\paragraph{Note}
 Now, we have already implemented different kernel functions for the two layers. Since optimizations in Section 2.1
 are merely parameter tuning for each layer, we would like to directly implement further optimizations based
 upon the two-kernel version in Section 2.1 and analyze the results by comparing to that version instead of
@@ -446,8 +446,11 @@ and each thread block processes a tile of elements at one time. \\
 We chose loading strategy one, where all threads are utilized in multiple loop
 cycles to load the slightly bigger shared tile of data. The reason for not using
 strategy 2 is that we realize the finite computing resources is one of the
-biggest limiting factor, so we don't want to waste the extra threads just for
-seven slightly hurt the performance. This is because of the bottleneck present
+biggest limiting factor of performance, so we don't want to waste the extra threads
+that are active only in loading stage but idle in computing stage. From the runtime
+report below, we can see that this optimization alone did not improve too much
+of the overall runtime, but even
+slightly hurt the performance. This is because of the bottleneck presented
 in reading the kernel data from global memory. Since the kernel is quite small,
 many threads are competing for the same addresses which causes a lot of serialization
 in the calculation loop. The tiled strategy, however, does introduce some overhead
@@ -475,6 +478,50 @@ increased by this optimization.
     \end{subfigure}
     \begin{subfigure}[b]{\linewidth}
         \includegraphics[width=\linewidth]{shared_layer2_mem}
+        \caption{Memory Throughput}
+    \end{subfigure}
+    \caption{Layer 2 Statistics}
+\end{figure}
+
+\subsection{Combined Optimization}
+Now we combine all the optimizations to benchmark against our Two Kernel baseline
+implementation, we can see a great deal of improvement in runtime, memory throughput,
+and SM occupancy. From the statistics below we can see that a lot less threads
+are stalling for memory operations and more time are spent in floating point
+computation. The combination of constant cached kernel and tiled convolution
+completely takes away global memory access in the computing stage. And since shared
+tile loading is almost perfectly coealesed with this linearized strategy, the
+runtime is dramatically reduced.
+
+\begin{figure}[H]
+    \centering
+    \begin{subfigure}[b]{\linewidth}
+        \includegraphics[width=\linewidth]{ms4_layer1_runtime}
+        \caption{Execution Time}
+    \end{subfigure}
+    \begin{subfigure}[b]{\linewidth}
+        \includegraphics[width=\linewidth]{ms4_layer1_warp}
+        \caption{Warp Statistics}
+    \end{subfigure}
+    \begin{subfigure}[b]{\linewidth}
+        \includegraphics[width=\linewidth]{ms4_layer1_mem}
+        \caption{Memory Throughput}
+    \end{subfigure}
+    \caption{Layer 1 Statistics}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \begin{subfigure}[b]{\linewidth}
+        \includegraphics[width=\linewidth]{ms4_layer2_runtime}
+        \caption{Execution Time}
+    \end{subfigure}
+    \begin{subfigure}[b]{\linewidth}
+        \includegraphics[width=\linewidth]{ms4_layer2_warp}
+        \caption{Warp Statistics}
+    \end{subfigure}
+    \begin{subfigure}[b]{\linewidth}
+        \includegraphics[width=\linewidth]{ms4_layer2_mem}
         \caption{Memory Throughput}
     \end{subfigure}
     \caption{Layer 2 Statistics}
