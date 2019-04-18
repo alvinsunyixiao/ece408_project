@@ -101,8 +101,7 @@ __global__ void forward_layer1(float *y, const float *x, const float *w, const i
             for (int c = 0; c < C; ++c)
                 for (int p = 0; p < KERNEL_WIDTH; ++p)
                     for (int q = 0; q < KERNEL_WIDTH; ++q)
-                        sum += w4d(cout, c, p, q) * cache[c][ty+p][tx+q];
-                        //sum += cache[c][ty+p][tx+q] * kernel1[cout][c][p][q];
+                        sum += cache[c][ty+p][tx+q] * kernel1[cout][c][p][q];
             y4d(batch, cout, row, col) = sum;
         }
     }
@@ -150,8 +149,7 @@ __global__ void forward_layer2(float *y, const float *x, const float *w, const i
             for (int c = 0; c < C; ++c)
                 for (int p = 0; p < KERNEL_WIDTH; ++p)
                     for (int q = 0; q < KERNEL_WIDTH; ++q)
-                        sum += w4d(cout, c, p, q) * cache[c][ty+p][tx+q];
-                        //sum += cache[c][ty+p][tx+q] * kernel2[cout][c][p][q];
+                        sum += cache[c][ty+p][tx+q] * kernel2[cout][c][p][q];
             y4d(batch, cout, row, col) = sum;
         }
     }
@@ -185,14 +183,14 @@ void forward<gpu, float>(mshadow::Tensor<gpu, 4, float> &y,
         dim3 gridDim(ceil((float)W_out / L1_TILE_WIDTH),
                      ceil((float)H_out / L1_TILE_WIDTH), B);
         dim3 blockDim(L1_TILE_WIDTH, L1_TILE_WIDTH, L1_Cout);
-        //cudaMemcpyToSymbol(kernel1, wptr, sizeof(float) * K_SIZE);
+        cudaMemcpyToSymbol(kernel1, wptr, sizeof(float) * K_SIZE);
         forward_layer1<<<gridDim, blockDim>>>(yptr, xptr, wptr, B);
     }
     else if (C_in == L2_Cin) {
         dim3 gridDim(ceil((float)W_out / L2_TILE_WIDTH),
                      ceil((float)H_out / L2_TILE_WIDTH), B);
         dim3 blockDim(L2_TILE_WIDTH, L2_TILE_WIDTH, L2_Cout);
-        //cudaMemcpyToSymbol(kernel2, wptr, sizeof(float) * K_SIZE);
+        cudaMemcpyToSymbol(kernel2, wptr, sizeof(float) * K_SIZE);
         forward_layer2<<<gridDim, blockDim>>>(yptr, xptr, wptr, B);
     }
 
