@@ -308,13 +308,8 @@ EvalMetric: {'accuracy': 0.8236}
 
 \section{Execution Summary}
 Upon Milestone 4, we have implemented three optimizations to our kernel function, including having different
-<<<<<<< HEAD
-implementations and tunings for different layers, using shared memory convolution, and putting convolution
-kernels in constant memory. The overall execution involving all three optimizations yields the following
-=======
 implementations and tuning for different layers, using shared memory convolution, and putting convolution
 kernels in constant memory. The overall execution (on server) involving all three optimizations yields the following
->>>>>>> milestone4
 results.
 
 \begin{table}[H]
@@ -345,18 +340,13 @@ results.
         \end{tabular}
         \caption*{100 images}
     \end{minipage}
-<<<<<<< HEAD
-    \caption{GPU Run Time Statistics}
-=======
     \caption{Run time statistics after applying all three optimizations.}
->>>>>>> milestone4
 \end{table}
 
 We will discuss each optimization in the following section.
 
 \section{Optimizations}
 
-<<<<<<< HEAD
 \subsection{Seperate Kernel Implementations for Different Layers}
 [Optimization analysis and nvprof report]
 
@@ -369,7 +359,6 @@ the original unoptimized version.
 \subsection{Kernels in Constant Memory}
 [Optimization analysis and nvprof report]
 
-=======
 \paragraph{Note}
 As a preliminary note, we would like to mention that, in order to avoid unexpected server fluctuations and speedup our development,
 we have setup a local development environment using an NVIDIA GeForce RTX 2080 running CUDA 10.0. Our discussions below will be based on
@@ -549,6 +538,5 @@ runtime is dramatically reduced.
     \end{subfigure}
     \caption{Layer 2 Statistics}
 \end{figure}
->>>>>>> milestone4
 
 \end{document}
