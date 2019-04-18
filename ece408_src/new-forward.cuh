@@ -23,7 +23,7 @@
 #define L1_Wout         44
 #define L1_Cout         6
 
-#define L1_TILE_WIDTH   11
+#define L1_TILE_WIDTH   8
 #define L1_BLK_WIDTH    (L1_TILE_WIDTH + KERNEL_WIDTH - 1)
 #define L1_TILE_SIZE    (L1_TILE_WIDTH*L1_TILE_WIDTH)
 #define L1_BLK_SIZE     (L1_BLK_WIDTH*L1_BLK_WIDTH)
@@ -37,7 +37,7 @@
 #define L2_Wout         18
 #define L2_Cout         16
 
-#define L2_TILE_WIDTH   6
+#define L2_TILE_WIDTH   8
 #define L2_BLK_WIDTH    (L2_TILE_WIDTH + KERNEL_WIDTH - 1)
 #define L2_TILE_SIZE    (L2_TILE_WIDTH*L2_TILE_WIDTH)
 #define L2_BLK_SIZE     (L2_BLK_WIDTH*L2_BLK_WIDTH)
