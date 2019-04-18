@@ -23,7 +23,7 @@
 #define L1_Wout         44
 #define L1_Cout         6
 
-#define L1_TILE_WIDTH   11
+#define L1_TILE_WIDTH   8
 #define L1_BLK_WIDTH    (L1_TILE_WIDTH + KERNEL_WIDTH - 1)
 #define L1_TILE_SIZE    (L1_TILE_WIDTH*L1_TILE_WIDTH)
 #define L1_BLK_SIZE     (L1_BLK_WIDTH*L1_BLK_WIDTH)
@@ -37,7 +37,7 @@
 #define L2_Wout         18
 #define L2_Cout         16
 
-#define L2_TILE_WIDTH   6
+#define L2_TILE_WIDTH   8
 #define L2_BLK_WIDTH    (L2_TILE_WIDTH + KERNEL_WIDTH - 1)
 #define L2_TILE_SIZE    (L2_TILE_WIDTH*L2_TILE_WIDTH)
 #define L2_BLK_SIZE     (L2_BLK_WIDTH*L2_BLK_WIDTH)
@@ -77,32 +77,31 @@ __global__ void forward_layer1(float *y, const float *x, const float *w, const i
     const int cout  = tz;
     const int batch = bz;
 
+    float sum = 0;
+    float tmp = 0;
+
     if (batch < B) {
         // load shared cache
-        /*
         if (tz < L1_LOAD_CYCLE){ // use one of the threads to load
             int off_col = l_idx % L1_BLK_WIDTH;
             int off_row = l_idx / L1_BLK_WIDTH % L1_BLK_WIDTH;
             int channel = l_idx / L1_BLK_SIZE;
             if (channel < C) {
                 if (b_col + off_col < W && b_row + off_row < H)
-                    cache[channel][off_row][off_col] = x4d(batch, channel, off_row+b_row, off_col+b_col);
-                else
-                    cache[channel][off_row][off_col] = 0;
+                    tmp = x4d(batch, channel, off_row+b_row, off_col+b_col);
+                cache[channel][off_row][off_col] = tmp;
             }
         }
 
         __syncthreads();
-        */
 
         // perform computation
         if (row < H_out && col < W_out) {
-            float sum = 0;
             y4d(batch, cout, row, col) = 0;
             for (int c = 0; c < C; ++c)
                 for (int p = 0; p < KERNEL_WIDTH; ++p)
                     for (int q = 0; q < KERNEL_WIDTH; ++q)
-                        sum += w4d(cout, c, p, q) * x4d(batch, c, row+p, col+q);
+                        sum += w4d(cout, c, p, q) * cache[c][ty+p][tx+q];
                         //sum += cache[c][ty+p][tx+q] * kernel1[cout][c][p][q];
             y4d(batch, cout, row, col) = sum;
         }
@@ -128,31 +127,30 @@ __global__ void forward_layer2(float *y, const float *x, const float *w, const i
     const int cout  = tz;
     const int batch = bz;
 
+    float sum = 0;
+    float tmp = 0;
+
     if (batch < B) {
         // load shared cache
-        /*
         if (tz < L2_LOAD_CYCLE){ // use one of the threads to load
             int off_col = l_idx % L2_BLK_WIDTH;
             int off_row = l_idx / L2_BLK_WIDTH % L2_BLK_WIDTH;
             int channel = l_idx / L2_BLK_SIZE;
             if (channel < C) {
                 if (b_col + off_col < W && b_row + off_row < H)
-                    cache[channel][off_row][off_col] = x4d(batch, channel, off_row+b_row, off_col+b_col);
-                else
-                    cache[channel][off_row][off_col] = 0;
+                    tmp = x4d(batch, channel, off_row+b_row, off_col+b_col);
+                cache[channel][off_row][off_col] = tmp;
             }
         }
 
         __syncthreads();
-        */
 
         // perform computation
         if (row < H_out && col < W_out) {
-            float sum = 0;
             for (int c = 0; c < C; ++c)
                 for (int p = 0; p < KERNEL_WIDTH; ++p)
                     for (int q = 0; q < KERNEL_WIDTH; ++q)
-                        sum += w4d(cout, c, p, q) * x4d(batch, c, row+p, col+q);
+                        sum += w4d(cout, c, p, q) * cache[c][ty+p][tx+q];
                         //sum += cache[c][ty+p][tx+q] * kernel2[cout][c][p][q];
             y4d(batch, cout, row, col) = sum;
         }
