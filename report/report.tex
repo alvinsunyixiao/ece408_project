@@ -308,8 +308,13 @@ EvalMetric: {'accuracy': 0.8236}
 
 \section{Execution Summary}
 Upon Milestone 4, we have implemented three optimizations to our kernel function, including having different
+<<<<<<< HEAD
 implementations and tunings for different layers, using shared memory convolution, and putting convolution
 kernels in constant memory. The overall execution involving all three optimizations yields the following
+=======
+implementations and tuning for different layers, using shared memory convolution, and putting convolution
+kernels in constant memory. The overall execution (on server) involving all three optimizations yields the following
+>>>>>>> milestone4
 results.
 
 \begin{table}[H]
@@ -340,13 +345,18 @@ results.
         \end{tabular}
         \caption*{100 images}
     \end{minipage}
+<<<<<<< HEAD
     \caption{GPU Run Time Statistics}
+=======
+    \caption{Run time statistics after applying all three optimizations.}
+>>>>>>> milestone4
 \end{table}
 
 We will discuss each optimization in the following section.
 
 \section{Optimizations}
 
+<<<<<<< HEAD
 \subsection{Seperate Kernel Implementations for Different Layers}
 [Optimization analysis and nvprof report]
 
@@ -359,5 +369,186 @@ the original unoptimized version.
 \subsection{Kernels in Constant Memory}
 [Optimization analysis and nvprof report]
 
+=======
+\paragraph{Note}
+As a preliminary note, we would like to mention that, in order to avoid unexpected server fluctuations and speedup our development,
+we have setup a local development environment using an NVIDIA GeForce RTX 2080 running CUDA 10.0. Our discussions below will be based on
+execution results and statistics generated in our local environment. Despite this, we have ensured that our optimizations work as
+intended on the server. Also, for simplicity, we will only benchmark data size 10000.
+
+\subsection{Seperate Kernel Implementations for Different Layers}
+As far as we observe, the original kernel function, although general enough to be used for both layers, has a function signiture
+\begin{verbatim}
+__global__ void forward_kernel(float *y, const float *x, const float *k,
+        const int B, const int M, const int C, const int H, const int W, const int K)
+\end{verbatim}
+that is too long and many of the parameters are unnecessary as we already know them for each layer. Hence, one optimization involves
+implementing two different kernel functions for these two different layers. In other words, this optimization is barely finding and hardcoding
+the best possible parameters for each layer, including layer input and output channel numbers, input and output dimensions, and, most importantly,
+kernel launch parameters that best avoid warp control divergences.
+\par
+By profiling our optimized version using NVIDIA Nsight Compute, we observe a great deal of increase in execution time and decrease in
+warp divergences.
+
+\begin{figure}[H]
+    \centering
+    \begin{subfigure}[b]{\linewidth}
+        \includegraphics[width=\linewidth]{2kern_layer1_runtime}
+        \caption{Execution Time}
+    \end{subfigure}
+    \begin{subfigure}[b]{\linewidth}
+        \includegraphics[width=\linewidth]{2kern_layer1_warp}
+        \caption{Warp Statistics}
+    \end{subfigure}
+    \caption{Layer 1 Statistics}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \begin{subfigure}[b]{\linewidth}
+        \includegraphics[width=\linewidth]{2kern_layer2_runtime}
+        \caption{Execution Time}
+    \end{subfigure}
+    \begin{subfigure}[b]{\linewidth}
+        \includegraphics[width=\linewidth]{2kern_layer2_warp}
+        \caption{Warp Statistics}
+    \end{subfigure}
+    \caption{Layer 2 Statistics}
+\end{figure}
+
+\paragraph{Note}
+Now, we have already implemented different kernel functions for the two layers. Since optimizations in Section 2.1
+are merely parameter tuning for each layer, we would like to directly implement further optimizations based
+upon the two-kernel version in Section 2.1 and analyze the results by comparing to that version instead of
+the original unoptimized version.
+
+\subsection{Kernels in Constant Memory}
+One optimization is to put kernels in constant memory by using
+cudaMemcpyToSymbol() API call. This optimization is possible because convolution
+kernels are
+effectively read-only for each CUDA kernel launch. The contribution by this
+optimization alone results in a relatively small amount of improvement in runtime
+due to increasing efficiency of memory accessing throughput. The constant memory
+kernel alone did not boost up too much the performance due to the bottleneck
+of global memory fetching induced by the input element accesses.
+
+\begin{figure}[H]
+    \centering
+    \begin{subfigure}[b]{\linewidth}
+        \includegraphics[width=\linewidth]{const_layer1_runtime}
+        \caption{Execution Time}
+    \end{subfigure}
+    \begin{subfigure}[b]{\linewidth}
+        \includegraphics[width=\linewidth]{const_layer1_mem}
+        \caption{Memory Throughput}
+    \end{subfigure}
+    \caption{Layer 1 Statistics}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \begin{subfigure}[b]{\linewidth}
+        \includegraphics[width=\linewidth]{const_layer2_runtime}
+        \caption{Execution Time}
+    \end{subfigure}
+    \begin{subfigure}[b]{\linewidth}
+        \includegraphics[width=\linewidth]{const_layer2_mem}
+        \caption{Memory Throughput}
+    \end{subfigure}
+    \caption{Layer 2 Statistics}
+\end{figure}
+
+
+\subsection{Tiled Convolution using Shared Memory}
+We can also optimize memory access pattern and reduce global memory access by caching
+elements that are highly reused into shared memory for each thread block.
+This optimization also implies that we break the input image into smaller tiles
+and each thread block processes a tile of elements at one time. \\
+
+\par
+We chose loading strategy one, where all threads are utilized in multiple loop
+cycles to load the slightly bigger shared tile of data. The reason for not using
+strategy 2 is that we realize the finite computing resources is one of the
+biggest limiting factor of performance, so we don't want to waste the extra threads
+that are active only in loading stage but idle in computing stage. From the runtime
+report below, we can see that this optimization alone did not improve too much
+of the overall runtime, but even
+slightly hurt the performance. This is because of the bottleneck presented
+in reading the kernel data from global memory. Since the kernel is quite small,
+many threads are competing for the same addresses which causes a lot of serialization
+in the calculation loop. The tiled strategy, however, does introduce some overhead
+in the loading stage. Despite all of these, the overall memory throughput is still
+increased by this optimization.
+
+\begin{figure}[H]
+    \centering
+    \begin{subfigure}[b]{\linewidth}
+        \includegraphics[width=\linewidth]{shared_layer1_runtime}
+        \caption{Execution Time}
+    \end{subfigure}
+    \begin{subfigure}[b]{\linewidth}
+        \includegraphics[width=\linewidth]{shared_layer1_mem}
+        \caption{Memory Throughput}
+    \end{subfigure}
+    \caption{Layer 1 Statistics}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \begin{subfigure}[b]{\linewidth}
+        \includegraphics[width=\linewidth]{shared_layer2_runtime}
+        \caption{Execution Time}
+    \end{subfigure}
+    \begin{subfigure}[b]{\linewidth}
+        \includegraphics[width=\linewidth]{shared_layer2_mem}
+        \caption{Memory Throughput}
+    \end{subfigure}
+    \caption{Layer 2 Statistics}
+\end{figure}
+
+\subsection{Combined Optimization}
+Now we combine all the optimizations to benchmark against our Two Kernel baseline
+implementation, we can see a great deal of improvement in runtime, memory throughput,
+and SM occupancy. From the statistics below we can see that a lot less threads
+are stalling for memory operations and more time are spent in floating point
+computation. The combination of constant cached kernel and tiled convolution
+completely takes away global memory access in the computing stage. And since shared
+tile loading is almost perfectly coealesed with this linearized strategy, the
+runtime is dramatically reduced.
+
+\begin{figure}[H]
+    \centering
+    \begin{subfigure}[b]{\linewidth}
+        \includegraphics[width=\linewidth]{ms4_layer1_runtime}
+        \caption{Execution Time}
+    \end{subfigure}
+    \begin{subfigure}[b]{\linewidth}
+        \includegraphics[width=\linewidth]{ms4_layer1_warp}
+        \caption{Warp Statistics}
+    \end{subfigure}
+    \begin{subfigure}[b]{\linewidth}
+        \includegraphics[width=\linewidth]{ms4_layer1_mem}
+        \caption{Memory Throughput}
+    \end{subfigure}
+    \caption{Layer 1 Statistics}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \begin{subfigure}[b]{\linewidth}
+        \includegraphics[width=\linewidth]{ms4_layer2_runtime}
+        \caption{Execution Time}
+    \end{subfigure}
+    \begin{subfigure}[b]{\linewidth}
+        \includegraphics[width=\linewidth]{ms4_layer2_warp}
+        \caption{Warp Statistics}
+    \end{subfigure}
+    \begin{subfigure}[b]{\linewidth}
+        \includegraphics[width=\linewidth]{ms4_layer2_mem}
+        \caption{Memory Throughput}
+    \end{subfigure}
+    \caption{Layer 2 Statistics}
+\end{figure}
+>>>>>>> milestone4
 
 \end{document}
