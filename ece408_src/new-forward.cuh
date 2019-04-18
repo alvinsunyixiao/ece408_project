@@ -11,7 +11,7 @@
 #define BLOCK_WIDTH     8
 #define CHANNLE_SIZE    16
 
-#define BATCH_SIZE      64
+#define BATCH_SIZE      10000
 
 #define bx  blockIdx.x
 #define by  blockIdx.y
