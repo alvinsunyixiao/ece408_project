@@ -27,7 +27,7 @@
 #define L1_TILE_SIZE    (L1_TILE_HEIGHT*L1_TILE_WIDTH)
 #define L1_BLK_SIZE     (L1_BLK_HEIGHT*L1_BLK_WIDTH)
 /* not using ceiling to ensure contant evaluation by preprocessor */
-#define L1_LOAD_CYCLE   ((float)L1_Cin * L1_BLK_SIZE / L1_TILE_SIZE + 1)
+#define L1_LOAD_CYCLE   (L1_Cin * L1_BLK_SIZE / L1_TILE_SIZE + 1)
 
 /* layer 2 constants */
 #define L2_Hin          22
@@ -44,7 +44,7 @@
 #define L2_TILE_SIZE    (L2_TILE_HEIGHT*L2_TILE_WIDTH)
 #define L2_BLK_SIZE     (L2_BLK_HEIGHT*L2_BLK_WIDTH)
 /* not using ceiling to ensure contant evaluation by preprocessor */
-#define L2_LOAD_CYCLE   ((float)L2_Cin * L2_BLK_SIZE / L2_TILE_SIZE + 1)
+#define L2_LOAD_CYCLE   (L2_Cin / 2 * L2_BLK_SIZE / L2_TILE_SIZE + 1)
 
 #define bx  blockIdx.x
 #define by  blockIdx.y
@@ -59,7 +59,7 @@ namespace op
 {
 
 __constant__ float kernel1[L1_Cout][L1_Cin][KERNEL_WIDTH][KERNEL_WIDTH];
-__constant__ float kernel2[L2_Cout][L2_Cin][KERNEL_WIDTH][KERNEL_WIDTH];
+__constant__ half2 kernel2[L2_Cout/2][L2_Cin][KERNEL_WIDTH][KERNEL_WIDTH];
 
 __global__ void forward_layer1(float *y, const float *x, const int B) {
 
@@ -128,7 +128,7 @@ __global__ void forward_layer1(float *y, const float *x, const int B) {
 
 __global__ void forward_layer2(float *y, const float *x, const int B) {
 
-    __shared__ float cache[L2_Cin][L2_BLK_HEIGHT][L2_BLK_WIDTH];
+    __shared__ half2 cache[L2_Cin/2][L2_BLK_HEIGHT][L2_BLK_WIDTH];
 
     static int H        = L2_Hin;
     static int W        = L2_Win;
@@ -144,9 +144,9 @@ __global__ void forward_layer2(float *y, const float *x, const int B) {
     const int l_idx = ty * L2_TILE_WIDTH + tx; // linearized thread index
     const int batch = bz;
 
-    float value = 0;
-    float sum[L2_Cout] = { 0 };
-    float tmp;
+    half2 value;
+    half  sum[L2_Cout] = { 0 };
+    half2 tmp;
 
     int off_idx, off_col, off_row, channel;
 
@@ -158,9 +158,12 @@ __global__ void forward_layer2(float *y, const float *x, const int B) {
             off_col = off_idx % L2_BLK_WIDTH;
             off_row = off_idx / L2_BLK_WIDTH % L2_BLK_HEIGHT;
             channel = off_idx / L2_BLK_SIZE;
-            if (channel < C) {
-                if (b_col + off_col < W && b_row + off_row < H)
-                    value = x4d(batch, channel, off_row+b_row, off_col+b_col);
+            if (channel < C/2) {
+                value.x = value.y = 0;
+                if (b_col + off_col < W && b_row + off_row < H) {
+                    value.x = x4d(batch, channel, off_row+b_row, off_col+b_col);
+                    value.y = x4d(batch, channel+C/2, off_row+b_row, off_col+b_col);
+                }
                 cache[channel][off_row][off_col] = value;
             }
         }
@@ -170,15 +173,21 @@ __global__ void forward_layer2(float *y, const float *x, const int B) {
         // perform computation
         if (row < H_out && col < W_out) {
             #pragma unroll
-            for (int c = 0; c < L2_Cin; ++c) {
+            for (int c = 0; c < L2_Cin/2; ++c) {
                 #pragma unroll
                 for (int p = 0; p < KERNEL_WIDTH; ++p) {
                     #pragma unroll
                     for (int q = 0; q < KERNEL_WIDTH; ++q) {
                         tmp = cache[c][ty+p][tx+q];
                         #pragma unroll
-                        for (int cout = 0; cout < L2_Cout; ++cout) {
-                            sum[cout] += tmp * kernel2[cout][c][p][q];
+                        for (int cout = 0; cout < L2_Cout/2; ++cout) {
+                            sum[cout] += tmp.x * kernel2[cout][c][p][q].x;
+                            sum[cout+L2_Cout/2] += tmp.x * kernel2[cout][c][p][q].y;
+                        }
+                        #pragma unroll
+                        for (int cout = 0; cout < L2_Cout/2; ++cout) {
+                            sum[cout] += tmp.y * kernel2[cout][c+L2_Cin/2][p][q].x;
+                            sum[cout+L2_Cout/2] += tmp.y * kernel2[cout][c+L2_Cin/2][p][q].y;
                         }
                     }
                 }
@@ -188,6 +197,17 @@ __global__ void forward_layer2(float *y, const float *x, const int B) {
                 y4d(batch, cout, row, col) = sum[cout];
             }
         }
+    }
+}
+
+__global__ void float_2_half(float *input, half *output, int size) {
+    int idx_i = blockDim.x * bx + tx;
+    int idx_o = 2 * idx_i;
+    int half_size = size / 2;
+
+    if (idx_i < half_size) {
+        output[idx_o] = input[idx_i];
+        output[idx_o+1] = input[idx_i + half_size];
     }
 }
 
@@ -223,10 +243,15 @@ void forward<gpu, float>(mshadow::Tensor<gpu, 4, float> &y,
         forward_layer1<<<gridDim, blockDim>>>(yptr, xptr, B);
     }
     else if (C_in == L2_Cin) {
+        /* float 2 half conversion */
+        half *wptr_half;
+        cudaMalloc(&wptr_half, sizeof(half) * K_SIZE);
+        float_2_half<<<256, ceil(K_SIZE/2/256.)>>>(wptr, wptr_half, K_SIZE);
+        /* actual computation */
         dim3 gridDim(ceil((float)W_out / L2_TILE_WIDTH),
                      ceil((float)H_out / L2_TILE_HEIGHT), B);
         dim3 blockDim(L2_TILE_WIDTH, L2_TILE_HEIGHT, 1);
-        cudaMemcpyToSymbol(kernel2, wptr, sizeof(float) * K_SIZE);
+        cudaMemcpyToSymbol(kernel2, wptr_half, sizeof(half) * K_SIZE);
         forward_layer2<<<gridDim, blockDim>>>(yptr, xptr, B);
     }
 
