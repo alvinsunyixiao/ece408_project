@@ -58,7 +58,7 @@ namespace mxnet
 namespace op
 {
 
-__constant__ float kernel1[L1_Cout][L1_Cin][KERNEL_WIDTH][KERNEL_WIDTH];
+__constant__ half2 kernel1[L1_Cout/2][L1_Cin][KERNEL_WIDTH][KERNEL_WIDTH];
 __constant__ half2 kernel2[L2_Cout/2][L2_Cin][KERNEL_WIDTH][KERNEL_WIDTH];
 
 __global__ void forward_layer1(float *y, const float *x, const int B) {
@@ -80,8 +80,8 @@ __global__ void forward_layer1(float *y, const float *x, const int B) {
     const int batch = bz;
 
     float value = 0;
-    float sum[L1_Cout] = { 0 };
-    float tmp;
+    half2 sum[L1_Cout/2] = {{ 0, 0 }};
+    half2 tmp;
 
     int off_idx, off_col, off_row, channel;
 
@@ -110,17 +110,18 @@ __global__ void forward_layer1(float *y, const float *x, const int B) {
                 for (int p = 0; p < KERNEL_WIDTH; ++p) {
                     #pragma unroll
                     for (int q = 0; q < KERNEL_WIDTH; ++q) {
-                        tmp = cache[c][ty+p][tx+q];
+                        tmp.x = tmp.y = cache[c][ty+p][tx+q];
                         #pragma unroll
-                        for (int cout = 0; cout < L1_Cout; ++cout) {
+                        for (int cout = 0; cout < L1_Cout/2; ++cout) {
                             sum[cout] += tmp * kernel1[cout][c][p][q];
                         }
                     }
                 }
             }
             #pragma unroll
-            for (int cout = 0; cout < L1_Cout; ++cout) {
-                y4d(batch, cout, row, col) = sum[cout];
+            for (int cout = 0; cout < L1_Cout/2; ++cout) {
+                y4d(batch, cout, row, col) = sum[cout].x;
+                y4d(batch, cout+L1_Cout/2, row, col) = sum[cout].y;
             }
         }
     }
@@ -145,7 +146,7 @@ __global__ void forward_layer2(float *y, const float *x, const int B) {
     const int batch = bz;
 
     half2 value;
-    half  sum[L2_Cout] = { 0 };
+    half2 sum[L2_Cout/2] = {{ 0, 0 }};
     half2 tmp;
 
     int off_idx, off_col, off_row, channel;
@@ -154,12 +155,12 @@ __global__ void forward_layer2(float *y, const float *x, const int B) {
         // load shared cache
         #pragma unroll
         for (int i = 0; i < L2_LOAD_CYCLE; ++i) {
+            value.x = value.y = 0;
             off_idx = l_idx + i * L2_TILE_SIZE;
             off_col = off_idx % L2_BLK_WIDTH;
             off_row = off_idx / L2_BLK_WIDTH % L2_BLK_HEIGHT;
             channel = off_idx / L2_BLK_SIZE;
             if (channel < C/2) {
-                value.x = value.y = 0;
                 if (b_col + off_col < W && b_row + off_row < H) {
                     value.x = x4d(batch, channel, off_row+b_row, off_col+b_col);
                     value.y = x4d(batch, channel+C/2, off_row+b_row, off_col+b_col);
@@ -178,23 +179,29 @@ __global__ void forward_layer2(float *y, const float *x, const int B) {
                 for (int p = 0; p < KERNEL_WIDTH; ++p) {
                     #pragma unroll
                     for (int q = 0; q < KERNEL_WIDTH; ++q) {
-                        tmp = cache[c][ty+p][tx+q];
+                        tmp.x = tmp.y = cache[c][ty+p][tx+q].x;
                         #pragma unroll
                         for (int cout = 0; cout < L2_Cout/2; ++cout) {
-                            sum[cout] += tmp.x * kernel2[cout][c][p][q].x;
-                            sum[cout+L2_Cout/2] += tmp.x * kernel2[cout][c][p][q].y;
+                            sum[cout] += tmp * kernel2[cout][c][p][q];
                         }
+                    }
+                }
+                #pragma unroll
+                for (int p = 0; p < KERNEL_WIDTH; ++p) {
+                    #pragma unroll
+                    for (int q = 0; q < KERNEL_WIDTH; ++q) {
+                        tmp.x = tmp.y = cache[c][ty+p][tx+q].y;
                         #pragma unroll
                         for (int cout = 0; cout < L2_Cout/2; ++cout) {
-                            sum[cout] += tmp.y * kernel2[cout][c+L2_Cin/2][p][q].x;
-                            sum[cout+L2_Cout/2] += tmp.y * kernel2[cout][c+L2_Cin/2][p][q].y;
+                            sum[cout] += tmp * kernel2[cout][c+L2_Cin/2][p][q];
                         }
                     }
                 }
             }
             #pragma unroll
-            for (int cout = 0; cout < L2_Cout; ++cout) {
-                y4d(batch, cout, row, col) = sum[cout];
+            for (int cout = 0; cout < L2_Cout/2; ++cout) {
+                y4d(batch, cout, row, col) = sum[cout].x;
+                y4d(batch, cout+L2_Cout/2, row, col) = sum[cout].y;
             }
         }
     }
@@ -234,19 +241,21 @@ void forward<gpu, float>(mshadow::Tensor<gpu, 4, float> &y,
     float *yptr = y.dptr_;
     float *wptr = w.dptr_;
 
+    /* float 2 half conversion */
+    half *wptr_half;
+    cudaMalloc(&wptr_half, sizeof(half) * K_SIZE);
+    float_2_half<<<256, ceil(K_SIZE/2/256.)>>>(wptr, wptr_half, K_SIZE);
+
     // kernel execution
     if (C_in == L1_Cin) {
+        /* actual computation */
         dim3 gridDim(ceil((float)W_out / L1_TILE_WIDTH),
                      ceil((float)H_out / L1_TILE_HEIGHT), B);
         dim3 blockDim(L1_TILE_WIDTH, L1_TILE_HEIGHT, 1);
-        cudaMemcpyToSymbol(kernel1, wptr, sizeof(float) * K_SIZE);
+        cudaMemcpyToSymbol(kernel1, wptr_half, sizeof(half) * K_SIZE);
         forward_layer1<<<gridDim, blockDim>>>(yptr, xptr, B);
     }
     else if (C_in == L2_Cin) {
-        /* float 2 half conversion */
-        half *wptr_half;
-        cudaMalloc(&wptr_half, sizeof(half) * K_SIZE);
-        float_2_half<<<256, ceil(K_SIZE/2/256.)>>>(wptr, wptr_half, K_SIZE);
         /* actual computation */
         dim3 gridDim(ceil((float)W_out / L2_TILE_WIDTH),
                      ceil((float)H_out / L2_TILE_HEIGHT), B);
@@ -254,6 +263,8 @@ void forward<gpu, float>(mshadow::Tensor<gpu, 4, float> &y,
         cudaMemcpyToSymbol(kernel2, wptr_half, sizeof(half) * K_SIZE);
         forward_layer2<<<gridDim, blockDim>>>(yptr, xptr, B);
     }
+
+    cudaFree(wptr_half);
 
     // Use MSHADOW_CUDA_CALL to check for CUDA runtime errors.
     MSHADOW_CUDA_CALL(cudaDeviceSynchronize());
