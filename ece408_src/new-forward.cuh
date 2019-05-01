@@ -20,14 +20,22 @@
 #define L1_Wout         44
 #define L1_Cout         6
 
-#define L1_TILE_HEIGHT  11
-#define L1_TILE_WIDTH   44
-#define L1_BLK_HEIGHT   (L1_TILE_HEIGHT + KERNEL_WIDTH - 1)
-#define L1_BLK_WIDTH    (L1_TILE_WIDTH + KERNEL_WIDTH - 1)
-#define L1_TILE_SIZE    (L1_TILE_HEIGHT*L1_TILE_WIDTH)
-#define L1_BLK_SIZE     (L1_BLK_HEIGHT*L1_BLK_WIDTH)
-/* not using ceiling to ensure contant evaluation by preprocessor */
-#define L1_LOAD_CYCLE   (L1_Cin * L1_BLK_SIZE / L1_TILE_SIZE + 1)
+/* matrix dimension */
+#define L1_K_HEIGHT     L1_Cout
+#define L1_K_WIDTH      (KERNEL_WIDTH * KERNEL_WIDTH)
+#define L1_X_HEIGHT     L1_K_WIDTH
+#define L1_X_WIDTH      (L1_Hout * L1_Wout)
+#define L1_Y_HEIGHT     L1_Cout
+#define L1_Y_WIDTH      (L1_Hout * L1_Wout)
+
+/* kernel launch specs */
+#define L1_TILE_H       6
+#define L1_TILE_W       176
+#define L1_TILE_K       5
+#define L1_CYCLE        (KERNEL_WIDTH * KERNEL_WIDTH / L1_TILE_K)
+#define L1_CACHE_SIZE   (L1_TILE_K * L1_TILE_W)
+
+/* ------------------------------------------------------- */
 
 /* layer 2 constants */
 #define L2_Hin          22
@@ -62,8 +70,51 @@ namespace mxnet
 namespace op
 {
 
-__global__ void forward_layer1(const float* __restrict__ y, float* __restrict__ x, const int B) {
-    __shared__ float cache[L1_TILE_HEIGHT][L1_TILE_WIDTH]
+__global__ void forward_layer1(float* __restrict__ y, const float* __restrict__ x, const int B) {
+    float input[L1_TILE_K];
+    float output[L1_TILE_H];
+
+    static const int H        = L1_Hin;
+    static const int W        = L1_Win;
+    static const int C        = L1_Cin;
+    static const int H_out    = L1_Hout;
+    static const int W_out    = L1_Wout;
+    static const int M        = L1_Cout;
+
+    const int batch = bz;
+
+    int l_idx = bx * L1_TILE_W + tx;
+    int col_base = l_idx % L1_Wout;
+    int row_base = l_idx / L1_Wout;
+
+    float tmp;
+
+    #pragma unroll
+    for (int i = 0; i < L1_TILE_H; ++i)
+        output[i] = 0;
+
+    #pragma unroll
+    for (int i = 0; i < L1_CYCLE; ++i) {
+        /* load tile */
+        #pragma unroll
+        for (int j = 0; j < L1_TILE_K; ++j)
+            input[j] = x4d(batch, 0, row_base+i, col_base+j);
+        /* compute */
+        #pragma unroll
+        for (int k = 0; k < L1_TILE_H; ++k) {
+            tmp = 0;
+            #pragma unroll
+            for (int j = 0; j < L1_TILE_K; ++j) {
+                tmp += kernel1[k][0][i][j] * input[j];
+            }
+            output[k] += tmp;
+        }
+    }
+
+    /* store back to global memory */
+    #pragma unroll
+    for (int i = 0; i < L1_TILE_H; ++i)
+        y4d(batch, i, row_base, col_base) = output[i];
 }
 
 __global__ void forward_layer2(float* __restrict__ y, const float* __restrict__ x, const int B) {
@@ -183,9 +234,8 @@ void forward<gpu, float>(mshadow::Tensor<gpu, 4, float> &y,
     // kernel execution
     if (C_in == L1_Cin) {
         /* actual computation */
-        dim3 gridDim(ceil((float)W_out / L1_TILE_WIDTH),
-                     ceil((float)H_out / L1_TILE_HEIGHT), B);
-        dim3 blockDim(L1_TILE_WIDTH, L1_TILE_HEIGHT, 1);
+        dim3 gridDim(W_out * H_out / L1_TILE_W, 1, B);
+        dim3 blockDim(L1_TILE_W, 1, 1);
         cudaMemcpyToSymbol(kernel1, wptr, sizeof(float) * K_SIZE);
         forward_layer1<<<gridDim, blockDim>>>(yptr, xptr, B);
     }
