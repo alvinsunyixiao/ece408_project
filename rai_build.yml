@@ -22,6 +22,8 @@ commands:
     - /usr/bin/time python m4.1.py 10000 # execute code
     - /usr/bin/time python m4.1.py 10000 # execute code
     - /usr/bin/time python m4.1.py 10000 # execute code
+    - nvprof -f --kernels "::forward:1" --analysis-metrics -o layer1.nvvp python m4.1.py # execute code
+    - nvprof -f --kernels "::forward:2" --analysis-metrics -o layer2.nvvp python m4.1.py # execute code
     # - /usr/bin/time python m1.2.py # execute code
     # - /usr/bin/time python m2.1.py # execute code
     # - /usr/bin/time python m3.1.py # execute code
