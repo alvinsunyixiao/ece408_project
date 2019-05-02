@@ -17,8 +17,8 @@ commands:
     - pip2 install --user -e /mxnet/python   # install python bindings
     # <----Don't change the code above---->
     - nvidia-smi
-    - /usr/bin/time python m4.1.py 10000 # execute code
-    - /usr/bin/time python m4.1.py 10000 # execute code
+    - /usr/bin/time python m4.1.py 100 # execute code
+    - /usr/bin/time python m4.1.py 1000 # execute code
     - /usr/bin/time python m4.1.py 10000 # execute code
     - /usr/bin/time python m4.1.py 10000 # execute code
     - /usr/bin/time python m4.1.py 10000 # execute code

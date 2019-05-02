@@ -347,18 +347,6 @@ We will discuss each optimization in the following section.
 
 \section{Optimizations}
 
-\subsection{Seperate Kernel Implementations for Different Layers}
-[Optimization analysis and nvprof report]
-
-\subsection{Shared Memory Convolution}
-We have already implemented different kernel functions for the two layers. Since optimizations in Section 2.1
-are merely parameter tuning for each layer, we would like to directly implement further optimizations based
-upon the two-kernel version in Section 2.1 and analyze the results by comparing to that version instead of
-the original unoptimized version. 
-
-\subsection{Kernels in Constant Memory}
-[Optimization analysis and nvprof report]
-
 \paragraph{Note}
 As a preliminary note, we would like to mention that, in order to avoid unexpected server fluctuations and speedup our development,
 we have setup a local development environment using an NVIDIA GeForce RTX 2080 running CUDA 10.0. Our discussions below will be based on
@@ -538,5 +526,112 @@ runtime is dramatically reduced.
     \end{subfigure}
     \caption{Layer 2 Statistics}
 \end{figure}
+
+\part*{Milestone 5}
+\setcounter{section}{0}
+
+\section{Execution Summary}
+Upon Milestone 5, we have implemented three additional optimizations to our feed forward
+convolution kernel. The optimizations includes loop unrolling, pointer restriction with
+const quantifier, parameter tunning, register-shared caching, and half precision acceleration.
+All of the optimization combined help us achieve an around 5x decrease in run time.
+Below is a summary of the execution runtime and accuracy on the server.
+
+\begin{table}[H]
+    \centering
+    \begin{minipage}{.32\linewidth}
+        \begin{tabular}{c|c}
+            Accuracy & 0.8397 \\ \hline
+            First Layer Time & 1.053ms \\ \hline
+            Second Layer Time & 1.509ms
+        \end{tabular}
+        \caption*{10000 images}
+    \end{minipage}
+    ~
+    \begin{minipage}{.32\linewidth}
+        \begin{tabular}{c|c}
+            Accuracy & 0.852 \\ \hline
+            First Layer Time & 0.147ms \\ \hline
+            Second Layer Time & 0.251ms
+        \end{tabular}
+        \caption*{1000 images}
+    \end{minipage}
+    ~
+    \begin{minipage}{.32\linewidth}
+        \begin{tabular}{c|c}
+            Accuracy & 0.84 \\ \hline
+            First Layer Time & 0.070ms \\ \hline
+            Second Layer Time & 0.099ms
+        \end{tabular}
+        \caption*{100 images}
+    \end{minipage}
+    \caption{Run time statistics after applying all three optimizations.}
+\end{table}
+
+\section{Optimizations}
+
+\paragraph{Note}
+Same as in Milestone 4, we would like to mention that, in order to avoid unexpected server fluctuations and speedup our development,
+we have setup a local development environment using an NVIDIA GeForce RTX 2080 running CUDA 10.0. Our discussions below will be based on
+execution results and statistics generated in our local environment. Despite this, we have ensured that our optimizations work as
+intended on the server. Also, for simplicity, we will only benchmark data size 10000.
+
+\subsection{Parameter Tunning with Loop Unrolling \& Pointer Restriction}
+
+\textbf{Note.} Parameter Tunning is disccussed in the next section as we changed
+the overall program logic in it, so parameter tunning is all based on the new
+excution pattern in the next optimization.\\
+
+\textbf{Motivation.} Since our threads are mapped to the output matrix elements,
+each threads will requires iterations to accumulate for the convolution result.
+The boundary check overhead is not negligible when the loop is nested as well as
+when the iteration size is large. So loop unrolling can help eliminate those overhead
+and improve runtime. Moreover, it can also help save registers as the loop indices
+are no longer required.\\
+
+\textbf{Result.} As this is comparing against our milestone 4 baseline, which is
+a rather naive implementation of the kernel, loops are not quite deep, and there
+are other bottlenecks such as memory throughput, so loop unrolling does not actually
+provide too much of a performance increase. But in general, we can still see some
+expected behavior in terms of register usage and runtime. In addition to that,
+the warp starts to spend more time stalling on memory operations, as the index generation
+overhead is reduced. The benifit of the loop unrolling is
+much more obvious for later optimizations as the complexity of iterations grows bigger.\\
+
+\begin{figure}[H]
+    \centering
+    \begin{subfigure}[b]{\linewidth}
+        \includegraphics[width=\linewidth]{pragma_layer1_summary}
+        \caption{Execution Time}
+    \end{subfigure}
+    \begin{subfigure}[b]{\linewidth}
+        \includegraphics[width=\linewidth]{pragma_layer1_warp}
+        \caption{Warp Stall Reasons}
+    \end{subfigure}
+    \caption{Layer 1 Statistics}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \begin{subfigure}[b]{\linewidth}
+        \includegraphics[width=\linewidth]{pragma_layer2_summary}
+        \caption{Execution Time}
+    \end{subfigure}
+    \begin{subfigure}[b]{\linewidth}
+        \includegraphics[width=\linewidth]{pragma_layer2_warp}
+        \caption{Warp Stall Reasons}
+    \end{subfigure}
+    \caption{Layer 2 Statistics}
+\end{figure}
+
+\subsection{Register-Shared Caching}
+\textbf{Motivation.}
+
+\textbf{Result.}
+
+\subsection{Half Precision Acceleration}
+\textbf{Motivation.}
+
+\textbf{Result.}
 
 \end{document}
