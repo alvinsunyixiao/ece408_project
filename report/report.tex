@@ -223,7 +223,7 @@ EvalMetric: {'accuracy': 0.8236}
         \begin{tabular}{c|c}
             Full CPU Time & 11.32s \\ \hline
             First Layer Time & 2.405296s \\ \hline
-            Second Layer Time & 7.342860
+            Second Layer Time & 7.342860s
         \end{tabular}
         \caption*{10000 images}
     \end{minipage}
@@ -531,10 +531,10 @@ runtime is dramatically reduced.
 \setcounter{section}{0}
 
 \section{Execution Summary}
-Upon Milestone 5, we have implemented three additional optimizations to our feed forward
-convolution kernel. The optimizations includes loop unrolling, pointer restriction with
-const quantifier, parameter tunning, register-shared caching, and half precision acceleration.
-All of the optimization combined help us achieve an around 5x decrease in run time.
+Upon Milestone 5, we have implemented three additional optimizations to our feed-forward
+convolution kernel. The optimizations include loop unrolling, pointer restriction with
+\verb|const| and \verb|__restrict__| quantifier, parameter tunning, register-shared caching, and half precision acceleration.
+All of the optimization combined help us reduce the run time by a factor of 1/5.
 Below is a summary of the execution runtime and accuracy on the server.
 
 \begin{table}[H]
@@ -579,13 +579,13 @@ intended on the server. Also, for simplicity, we will only benchmark data size 1
 \subsection{Parameter Tunning with Loop Unrolling \& Pointer Restriction}
 
 \textbf{Note.} Parameter Tunning is disccussed in the next section as we changed
-the overall program logic in it, so parameter tunning is all based on the new
-excution pattern in the next optimization.\\
+the overall program logic in it. As a result, parameter tunning is based on
+the new excution pattern in the next optimization.\\
 
 \textbf{Motivation.} Since our threads are mapped to the output matrix elements,
-each threads will requires iterations to accumulate for the convolution result.
+each threads will require iterations to accumulate for the convolution result.
 The boundary check overhead is not negligible when the loop is nested as well as
-when the iteration size is large. So loop unrolling can help eliminate those overhead
+when the iteration size is large. So, loop unrolling can help eliminate those overhead
 and improve runtime. Moreover, it can also help save registers as the loop indices
 are no longer required.\\
 
@@ -625,13 +625,236 @@ much more obvious for later optimizations as the complexity of iterations grows 
 \end{figure}
 
 \subsection{Register-Shared Caching}
-\textbf{Motivation.}
+\textbf{Motivation.} Though we have implemented shared-memory convolution,
+we still observed that there are bottlenecks at memory throughput. By a thorough
+investigation, we found that we can further reduce redundant shared-memory accesses
+and optimize global memory access pattern by caching the most-reused data in
+per-thread registers. This optimization is made possible thanks to the powerful
+hardware provided by modern technologies (which ensures enough registers for us to
+utilize) and the fact that we changed the thread mapping so that now each thread
+calculates an output for each output feature map iteratively, i.e. for layer 1 which
+we have 6 output feature maps, each thread calculates 6 outputs. This fact implies
+that each thread would reuse elements in input feature maps for calculations of all
+output feature maps. Hence, we could cache these reused elements in local registers
+to improve shared-memory access efficiency. In addition to caching inputs, we also
+cache output elements in local registers and write the results together to the
+global memory after all calculations to ensure a coealesed write pattern. We expect
+this to improve global memory write throughput.\\
 
-\textbf{Result.}
+\textbf{Parameter Tuning.} We tuned several parameters (especially kernel launch
+configurations) after implementing register-shared caching (in fact, we almost
+did such kind of tuning every time after a new optimization). In the case of
+this optimization that implements register-shared caching, we made a significant
+change to memory access pattern by configuring a non-square thread block.
+Specifically, we take layer 1 as an example, which has one $48\times48$ input feature map and six $44\times44$ output feature maps. Since the input and output
+elements are organized linearly in memory, we can use a $11\times44$ tile to match
+the organization of the output elements. As we expected, we observed a great deal
+of increase in memory access efficiency and significant decrease in run time after
+applying this configuration. \\
 
-\subsection{Half Precision Acceleration}
-\textbf{Motivation.}
+\textbf{Result.} This optimization is the most significant one among all three.
+From the benchmark, we could see it provides a 4x increase in overall performance.
+If we analyze further into the details, we could see the memory throughput
+increased a lot for both layers. The shared computing scheme results in a lot less
+shared memory accesses as well as constant memory cache misses. The memory throughput
+is increased around 3x for both layers as indicated in the figure below. From the
+warp statistic section, we also see that the Stall MIO (Memory IO) is reduced by
+a great factor that the kernel no longer have a significant stalling source. If
+we look into the instruction statistics, it is also very obvious that this optimization
+saves a lot of duplicated executions for both memory fetch and computations.
 
-\textbf{Result.}
+\begin{figure}[H]
+    \centering
+    \begin{subfigure}[b]{\linewidth}
+        \includegraphics[width=\linewidth]{reg_share_layer1_summary}
+        \caption{Execution Time}
+    \end{subfigure}
+    \begin{subfigure}[b]{\linewidth}
+        \includegraphics[width=\linewidth]{reg_share_layer1_mem}
+        \caption{Memory Throughput}
+    \end{subfigure}
+    \begin{subfigure}[b]{\linewidth}
+        \includegraphics[width=\linewidth]{reg_share_layer1_opcode}
+        \caption{Instruction Statistics}
+    \end{subfigure}
+    \begin{subfigure}[b]{\linewidth}
+        \includegraphics[width=\linewidth]{reg_share_layer1_warp}
+        \caption{Stall Reasons}
+    \end{subfigure}
+    \caption{Layer 1 Statistics}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \begin{subfigure}[b]{\linewidth}
+        \includegraphics[width=\linewidth]{reg_share_layer2_summary}
+        \caption{Execution Time}
+    \end{subfigure}
+    \begin{subfigure}[b]{\linewidth}
+        \includegraphics[width=\linewidth]{reg_share_layer2_mem}
+        \caption{Memory Throughput}
+    \end{subfigure}
+    \begin{subfigure}[b]{\linewidth}
+        \includegraphics[width=\linewidth]{reg_share_layer2_opcode}
+        \caption{Instruction Statistics}
+    \end{subfigure}
+    \begin{subfigure}[b]{\linewidth}
+        \includegraphics[width=\linewidth]{reg_share_layer2_warp}
+        \caption{Stall Reasons}
+    \end{subfigure}
+    \caption{Layer 2 Statistics}
+\end{figure}
+
+\subsection{Half-Precision Arithmetic}
+\textbf{Motivation.} After applying all of the previous optimizations, we found
+it difficult to further improve from the perspective of algorithms, as we have
+almost achieved the ideal thread occupacy and memory throughput in previous
+optimizations. Since the essential arithmetic operation in our convolution
+algorithm is FMA (Fused Multiplication and Addition) of floating-point numbers,
+and multipling two 32-bit numbers should theoratically require a 64-bit number
+to store the result (while we only have 32 bits), we considered an optimization
+that replaces floating-point FMA by half-presicion-floating-point FMA. Particulally,
+our CUDA device (and that one on the server) provides hardwares to do two
+half-precision FMAs at one time. This would theoratically double the computation
+throughput.\\
+
+\textbf{Side Notes.} Here we only perform this half precision optimization for
+layer 2. The main reason is that after a thorough analysis on the previous optimization
+checkpoint, we found out that the performance of layer 2 is more limited by computation,
+while layer 1 is more limited by memory. Therefore, our experiments revealed that implementing the half precision kernel
+for layer 1 did not provide as much increase in performance as in layer 2, but also
+introduced non-negligible overhead in launching another kernel to convert the constant
+kernel weights to \verb|half2| data type.\\
+
+\textbf{Result.} A very important detail of our implementation is that we utilized
+the \verb|half2| arithmetic operations instead of just \verb|half| operations. This is because
+CUDA hardward favors single \verb|half2| arithmetic over 2 \verb|half| instructions. In addition,
+\verb|half2| (4-Byte) access in memory also follows a coealesed pattern for global memory
+and bank-conflict-free pattern for shared memory. Therefore, memory throughput is
+greatly increased with \verb|half2| data type. We split the output channel to 2 halves, so that
+the x and y element of each \verb|half2| value contains the first and second half of the original
+matrix elements. In terms of computation, according to NVIDIA's
+documentation, \verb|half2| operations is almost as fast as \verb|float|
+operations, so the computation time is theoratically reduced by a factor of 2 as only
+half of the original threads are need where each of them compute twice as many output
+elements. Since this optimization requires \verb|half2| type kernel as well, it
+reduces the the overall size of the constant kernel. This is especially significant for layer 2
+as the kernel size is quite large. The decrease in this kernel size also helps reduces the
+constant cache misses when reading the constant weights.
+The figure below confirmed the increase in runtime and memory throughput,
+which results in an overall 2x increase in performance.
+
+\begin{figure}[H]
+    \centering
+    \begin{subfigure}[b]{\linewidth}
+        \includegraphics[width=\linewidth]{half_layer2_summary}
+        \caption{Execution Time}
+    \end{subfigure}
+    \begin{subfigure}[b]{\linewidth}
+        \includegraphics[width=\linewidth]{half_layer2_mem}
+        \caption{Memory Throughput}
+    \end{subfigure}
+    \begin{subfigure}[b]{\linewidth}
+        \includegraphics[width=\linewidth]{half_layer2_warp}
+        \caption{Stall Reasons}
+    \end{subfigure}
+    \caption{Layer 2 Statistics}
+\end{figure}
+
+\subsection{Combined Optimization}
+Now we combine all the optimizations in milestone 5 to benchmark against our
+final version from milestone 4. The figures below indicated most of the major performance
+metrics. The most straight forward one will be the runtime and memory throughput as they
+are both improved by quite a big factor. However, a less obvious but important one is
+how the total number of instructions is reduced. This metric can well confirm our
+parallel logic reduced a great number of redundant operations with the latest 3
+additional optimizations.
+
+\begin{figure}[H]
+    \centering
+    \begin{subfigure}[b]{\linewidth}
+        \includegraphics[width=\linewidth]{final_layer1_summary}
+        \caption{Execution Time}
+    \end{subfigure}
+    \begin{subfigure}[b]{\linewidth}
+        \includegraphics[width=\linewidth]{final_layer1_mem}
+        \caption{Memory Throughput}
+    \end{subfigure}
+    \begin{subfigure}[b]{\linewidth}
+        \includegraphics[width=\linewidth]{final_layer1_opcode}
+        \caption{Stall Reasons}
+    \end{subfigure}
+    \caption{Layer 1 Statistics}
+\end{figure}
+
+\begin{figure}[H]
+    \centering
+    \begin{subfigure}[b]{\linewidth}
+        \includegraphics[width=\linewidth]{final_layer2_summary}
+        \caption{Execution Time}
+    \end{subfigure}
+    \begin{subfigure}[b]{\linewidth}
+        \includegraphics[width=\linewidth]{final_layer2_mem}
+        \caption{Memory Throughput}
+    \end{subfigure}
+    \begin{subfigure}[b]{\linewidth}
+        \includegraphics[width=\linewidth]{final_layer2_opcode}
+        \caption{Stall Reasons}
+    \end{subfigure}
+    \caption{Layer 2 Statistics}
+\end{figure}
+
+\subsection{More Possibilities}
+We acknowledged that there exist many more possibilities of optimization, which we
+will only briefly mention here. \\
+
+One possibility is to use FFT (Fast Fourier
+Transform) to reduce the Big-O complexity of convolution from $O(n^2)$ to $O(n\text{log}(n))$.
+This involves a step to calculate the DFT (Discrete Fourier Transform) of the
+convlution kernels and the input feature maps, a step to multiply their DFTs,
+and a step to retrieve the final result from the multiplied DFT. While this approach
+could theoratically bring a super significant increase in performance, we found it
+difficult to adopt in our project because doing FFT introduces too much overheads
+that we cannot avoid - for example, zero-padding of input signals is usually done
+on the host side, while we already have everything in the device memory. \\
+
+Another possibility is matrix unrolling, which we discussed in class. We actually
+implemented a version that uses matrix unrolling as an optimization. However, we did
+not see significant performance improvement due to this optimization. We examined
+the profling report by Nvidia Nsight Compute and concluded that we have already
+achieved a very high memory access efficiency, and thus matrix unrolling does not
+help further improve memory access efficiency. However, we did find potential
+benefits to implement convolution as matrix multiplication. Since our CUDA device
+provides Tensor Cores, which can do matrix multiplication and accumulation with very
+high throughput, it is possible to utilize this hardware to do convolution.
+
+\part*{Appendices}
+\setcounter{section}{0}
+
+\section{Work Distribution Among Group Members}
+Since we are only implementing two kernel functions for the two layers, it is very
+hard for us to seperately implement optimizations and combine the work. So for most
+of the time, we sat down and do the thinking together, as the majority of time
+is spent on the index arithmetic calculations instead of programming itself.
+We would like to name this strategy of distributing works "SCMB (Single Computer
+Multiple Brains)".
+
+\section{Extra Credit Request}
+For each of the optimizations, we performed very thorough analysis to insure we
+get the maximum performance gain out of it. The very detailed insights for each and every
+optimization are embedded inside the previous analysis sections.\\
+
+The half precision
+implementation is especially sophisticated as it involves special caring for both
+memory access pattern and compute pattern. Simple change from FP32 to FP16 won't
+provide as much of a performance increase as we delivered, especially when our previous
+optimization checkpoint already bring us to quite a high performance level, an additional 2x increase
+in performance is substantial. Also, the amount of work involved in packing the
+data to \verb|half2| pairs and making the new compute logic functional with the new
+data structure is at least twice as much as any other optimizations. Hence, we believe that
+the additional work put to the last optimization could be potentially considered as
+extra credit.\\
+
+Please consider our request.
 
 \end{document}
