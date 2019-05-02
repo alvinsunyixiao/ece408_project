@@ -58,16 +58,16 @@ namespace op
 __constant__ float kernel1[L1_Cout][L1_Cin][KERNEL_WIDTH][KERNEL_WIDTH];
 __constant__ float kernel2[L2_Cout][L2_Cin][KERNEL_WIDTH][KERNEL_WIDTH];
 
-__global__ void forward_layer1(float *y, const float *x, const float *w, const int B) {
+__global__ void forward_layer1(float* __restrict__ y, const float* __restrict__ x, const int B) {
 
     __shared__ float cache[L1_Cin][L1_BLK_WIDTH][L1_BLK_WIDTH];
 
-    static int H        = L1_Hin;
-    static int W        = L1_Win;
-    static int C        = L1_Cin;
-    static int H_out    = L1_Hout;
-    static int W_out    = L1_Wout;
-    static int M        = L1_Cout;
+    static const int H        = L1_Hin;
+    static const int W        = L1_Win;
+    static const int C        = L1_Cin;
+    static const int H_out    = L1_Hout;
+    static const int W_out    = L1_Wout;
+    static const int M        = L1_Cout;
 
     const int col   = bx * L1_TILE_WIDTH + tx;
     const int row   = by * L1_TILE_WIDTH + ty;
@@ -98,8 +98,11 @@ __global__ void forward_layer1(float *y, const float *x, const float *w, const i
         // perform computation
         if (row < H_out && col < W_out) {
             y4d(batch, cout, row, col) = 0;
+            #pragma unroll
             for (int c = 0; c < C; ++c)
+                #pragma unroll
                 for (int p = 0; p < KERNEL_WIDTH; ++p)
+                    #pragma unroll
                     for (int q = 0; q < KERNEL_WIDTH; ++q)
                         sum += cache[c][ty+p][tx+q] * kernel1[cout][c][p][q];
             y4d(batch, cout, row, col) = sum;
@@ -107,7 +110,7 @@ __global__ void forward_layer1(float *y, const float *x, const float *w, const i
     }
 }
 
-__global__ void forward_layer2(float *y, const float *x, const float *w, const int B) {
+__global__ void forward_layer2(float* __restrict__ y, const float* __restrict__ x, const int B) {
 
     __shared__ float cache[L2_Cin][L2_BLK_WIDTH][L2_BLK_WIDTH];
 
@@ -146,8 +149,11 @@ __global__ void forward_layer2(float *y, const float *x, const float *w, const i
 
         // perform computation
         if (row < H_out && col < W_out) {
+            #pragma unroll
             for (int c = 0; c < C; ++c)
+                #pragma unroll
                 for (int p = 0; p < KERNEL_WIDTH; ++p)
+                    #pragma unroll
                     for (int q = 0; q < KERNEL_WIDTH; ++q)
                         sum += cache[c][ty+p][tx+q] * kernel2[cout][c][p][q];
             y4d(batch, cout, row, col) = sum;
@@ -184,14 +190,14 @@ void forward<gpu, float>(mshadow::Tensor<gpu, 4, float> &y,
                      ceil((float)H_out / L1_TILE_WIDTH), B);
         dim3 blockDim(L1_TILE_WIDTH, L1_TILE_WIDTH, L1_Cout);
         cudaMemcpyToSymbol(kernel1, wptr, sizeof(float) * K_SIZE);
-        forward_layer1<<<gridDim, blockDim>>>(yptr, xptr, wptr, B);
+        forward_layer1<<<gridDim, blockDim>>>(yptr, xptr, B);
     }
     else if (C_in == L2_Cin) {
         dim3 gridDim(ceil((float)W_out / L2_TILE_WIDTH),
                      ceil((float)H_out / L2_TILE_WIDTH), B);
         dim3 blockDim(L2_TILE_WIDTH, L2_TILE_WIDTH, L2_Cout);
         cudaMemcpyToSymbol(kernel2, wptr, sizeof(float) * K_SIZE);
-        forward_layer2<<<gridDim, blockDim>>>(yptr, xptr, wptr, B);
+        forward_layer2<<<gridDim, blockDim>>>(yptr, xptr, B);
     }
 
     // Use MSHADOW_CUDA_CALL to check for CUDA runtime errors.
